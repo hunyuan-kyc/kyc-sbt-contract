@@ -1,76 +1,207 @@
-# KYC SoulBound Token (SBT) with ENS Integration
+# ENS-based KYC Soulbound Token
 
-这是一个基于 Foundry 开发的可升级智能合约，实现了带有 ENS 域名管理的 KYC SoulBound Token (SBT)。
+A decentralized KYC (Know Your Customer) system based on ENS (Ethereum Name Service) using Soulbound Token.
 
-## 主要功能
+## Overview
 
-1. **KYC 等级系统**
-   - NONE: 未认证
-   - BASIC: 基础认证
-   - ADVANCED: 高级认证
-   - PREMIUM: 特权认证
+This project implements a KYC system where:
+- Users can request KYC verification using their ENS names (.hsk)
+- Admins can approve/revoke KYC status
+- KYC status is bound to ENS names and cannot be transferred (Soulbound)
+- Multiple KYC levels supported (BASIC, ADVANCED, PREMIUM)
 
-2. **ENS 域名管理**
-   - 最小域名长度：5个字符
-   - 域名定价：基础价格 + 字符长度费用
-   - 基础价格：0.01 ETH
-   - 每字符费用：0.002 ETH
+## Features
 
-3. **SoulBound 特性**
-   - Token 不可转让
-   - 一年有效期
-   - 可续期
+- **ENS Integration**
+  - Custom .hsk TLD (Top Level Domain)
+  - ENS name ownership verification
+  - ENS resolver for KYC status
 
-4. **可升级合约**
-   - 使用 UUPS 代理模式
-   - 支持未来功能升级
+- **KYC Management**
+  - Request KYC with ENS name
+  - Approve/Revoke KYC status
+  - Multiple KYC levels
+  - KYC status expiration
 
-## 合约功能
+- **Admin Features**
+  - Multi-admin support
+  - Emergency pause/unpause
+  - Fee management
+  - Whitelist management
 
-### 用户功能
+- **Security**
+  - Soulbound (non-transferable)
+  - Role-based access control
+  - Pausable in emergency
+  - Upgradeable design
 
-1. `requestKyc(string memory ensName)`: 申请 KYC 并铸造 SBT
-2. `extendValidity(uint256 tokenId)`: 延长 SBT 有效期
-3. `getTokenDetails(uint256 tokenId)`: 获取 Token 详细信息
+## Contract Structure
 
-### 管理员功能
-
-1. `updateKycLevel(uint256 tokenId, KycLevel newLevel)`: 更新用户 KYC 等级
-
-## 定价规则
-
-- 基础价格：0.01 ETH
-- 每个字符额外收费：0.002 ETH
-- 示例：
-  - 5字符域名：0.01 + (5 * 0.002) = 0.02 ETH
-  - 10字符域名：0.01 + (10 * 0.002) = 0.03 ETH
-
-## 开发环境
-
-- Solidity: ^0.8.19
-- Foundry
-- OpenZeppelin Contracts Upgradeable
-
-## 测试
-
-运行测试：
-```bash
-forge test
+```solidity
+src/
+├── KycSBT.sol              // Main contract
+├── KycSBTStorage.sol       // Storage layout
+├── KycResolver.sol         // ENS resolver
+└── interfaces/
+    ├── IKycSBT.sol        // Main interface
+    └── IKycResolver.sol    // Resolver interface
 ```
 
-## 部署
+## Core Functions
 
-1. 部署实现合约
-2. 部署代理合约
-3. 初始化合约
+### User Functions
+```solidity
+// Request KYC verification
+function requestKyc(string calldata ensName) external payable;
 
-## 安全特性
+// Check if an address is KYC verified
+function isHuman(address account) external view returns (bool, uint8);
+```
 
-- 不可转让的 SoulBound Token
-- 基于时间的有效期控制
-- 只有管理员可以更新 KYC 等级
-- 可升级架构用于修复潜在问题 
+### Admin Functions
+```solidity
+// Approve KYC request
+function approve(address user, KycLevel level) external;
 
+// Revoke KYC status
+function revokeKyc(address user) external;
 
-forge install OpenZeppelin/openzeppelin-contracts --no-commit
-forge install OpenZeppelin/openzeppelin-contracts-upgradeable --no-commit
+// Emergency controls
+function emergencyPause() external;
+function emergencyUnpause() external;
+```
+
+## Integration Guide
+
+### Backend Integration Example (Node.js + ethers.js v6)
+
+```typescript
+import { 
+    ethers, 
+    Contract, 
+    JsonRpcProvider, 
+    Wallet, 
+    ContractEventPayload,
+    TransactionResponse,
+    TransactionReceipt 
+} from 'ethers';
+
+// KYC 状态类型
+interface KycStatus {
+    isValid: boolean;
+    level: number;
+}
+
+// 事件监听器类型
+type EventCallback = (args: ContractEventPayload) => void;
+
+class KycService {
+    private provider: JsonRpcProvider;
+    private wallet: Wallet;
+    private kycSBT: Contract;
+    private eventListeners: Map<string, EventCallback>;
+
+    constructor(
+        rpcUrl: string, 
+        contractAddress: string, 
+        privateKey: string, 
+        abi: any[]
+    ) {
+        this.provider = new JsonRpcProvider(rpcUrl);
+        this.wallet = new Wallet(privateKey, this.provider);
+        this.kycSBT = new Contract(contractAddress, abi, this.wallet);
+        this.eventListeners = new Map();
+    }
+
+    /**
+     * 用户请求 KYC
+     * @param ensName ENS 名称 (例如: "alice1.hsk")
+     * @returns 交易回执
+     */
+    async requestKyc(ensName: string): Promise<TransactionReceipt> {
+        try {
+            const fee = await this.kycSBT.registrationFee();
+            const tx = await this.kycSBT.requestKyc(ensName, { value: fee });
+            return await tx.wait();
+        } catch (error) {
+            console.error('Request KYC failed:', error);
+            throw error;
+        }
+    }
+
+    // ... 其他方法 ...
+}
+
+// 使用示例
+async function demo() {
+    const config = {
+        rpcUrl: "https://ethereum-goerli.publicnode.com",
+        contractAddress: "YOUR_CONTRACT_ADDRESS",
+        privateKey: "YOUR_PRIVATE_KEY",
+        abi: [] // 你的合约 ABI
+    };
+
+    try {
+        const kycService = new KycService(
+            config.rpcUrl,
+            config.contractAddress,
+            config.privateKey,
+            config.abi
+        );
+
+        // 1. 请求 KYC
+        const requestTx = await kycService.requestKyc("alice1.hsk");
+        console.log("KYC Request TX:", requestTx.hash);
+
+        // 2. 查询状态
+        const status = await kycService.checkKycStatus("USER_ADDRESS");
+        console.log("KYC Status:", status);
+    } catch (error) {
+        console.error("Demo failed:", error);
+    }
+}
+```
+
+## Testing
+
+```bash
+# Run all tests
+forge test
+
+# Run specific test file
+forge test --match-path test/KycSBTCore.t.sol
+
+# Run with detailed logs
+forge test -vvv
+```
+
+## Deployment
+
+```bash
+# Deploy to local network
+forge script script/Deploy.s.sol --rpc-url localhost
+
+# Deploy to testnet
+forge script script/Deploy.s.sol --rpc-url goerli --broadcast --verify
+```
+
+## Security Considerations
+
+1. ENS Name Validation
+   - Minimum length requirements
+   - Suffix (.hsk) validation
+   - Ownership verification
+
+2. Access Control
+   - Owner privileges
+   - Admin management
+   - Emergency controls
+
+3. Fee Management
+   - Registration fee
+   - Fee withdrawal
+   - Balance checks
+
+## License
+
+MIT
