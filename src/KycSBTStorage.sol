@@ -20,7 +20,8 @@ abstract contract KycSBTStorage {
     uint256 public minNameLength;
     uint256 public validityPeriod;
     bool public paused;
-    
+    string public suffix = ".hsk";
+
     // ENS Configuration
     ENS public ens;
     IKycResolver public resolver;

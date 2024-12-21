@@ -3,6 +3,7 @@ pragma solidity ^0.8.19;
 
 import "./KycSBTTest.sol";
 
+// success
 contract KycSBTFeeTest is KycSBTTest {
     function testSetRegistrationFee() public {
         uint256 newFee = 0.02 ether;
@@ -18,7 +19,7 @@ contract KycSBTFeeTest is KycSBTTest {
         uint256 newFee = 0.02 ether;
         
         vm.startPrank(user);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
         kycSBT.setRegistrationFee(newFee);
         vm.stopPrank();
     }
@@ -48,17 +49,15 @@ contract KycSBTFeeTest is KycSBTTest {
 
     function testWithdrawFeesNotOwner() public {
         vm.startPrank(user);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
         kycSBT.withdrawFees();
         vm.stopPrank();
     }
 
     function testWithdrawFeesNoBalance() public {
         vm.startPrank(owner);
-        vm.expectRevert("No fees to withdraw");
+        vm.expectRevert("KycSBT.withdrawFees: No fees to withdraw");
         kycSBT.withdrawFees();
         vm.stopPrank();
     }
-
-    // ... 其他费用相关测试 ...
 } 

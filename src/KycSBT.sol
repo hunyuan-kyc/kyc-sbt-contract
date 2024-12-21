@@ -3,12 +3,30 @@ pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@ens-contracts/contracts/registry/ENS.sol";
 import "./KycSBTStorage.sol";
 import "./interfaces/IKycSBT.sol";
-import "@ens-contracts/contracts/registry/ENS.sol";
 import "./interfaces/IKycResolver.sol";
 
 contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT {
+
+    
+    modifier whenNotPaused() {
+        require(!paused, "KycSBT.whenNotPaused: Contract is paused");
+        _;
+    }
+
+    modifier onlyAdmin() {
+        require(isAdmin[msg.sender] || owner() == msg.sender, "KycSBT.onlyAdmin: Not admin");
+        _;
+    }
+
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    // constructor() {
+    //     _disableInitializers();
+    // }
+
     function initialize() public initializer {
         __ERC721_init("KYC SBT", "KYC");
         __Ownable_init(msg.sender);
@@ -16,31 +34,29 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         minNameLength = 5;
     }
 
-    modifier whenNotPaused() {
-        require(!paused, "Contract is paused");
-        _;
-    }
-
-    modifier onlyAdmin() {
-        require(isAdmin[msg.sender] || owner() == msg.sender, "Not admin");
-        _;
+    // 添加设置后缀的函数
+    function setSuffix(string calldata newSuffix) external onlyOwner {
+        require(bytes(newSuffix).length > 0, "KycSBT.setSuffix: Invalid suffix");
+        require(bytes(newSuffix)[0] == bytes1("."), "KycSBT.setSuffix: Suffix must start with dot");
+        suffix = newSuffix;
     }
 
     function requestKyc(string calldata ensName) external payable override whenNotPaused {
-        // 验证名称长度（不包括.hsk后缀）
+        // 验证名称长度（不包括后缀）
         bytes memory nameBytes = bytes(ensName);
-        require(nameBytes.length >= 4, "Name too short"); // 确保至少有 .hsk
+        bytes memory suffixBytes = bytes(suffix);
+        require(nameBytes.length >= suffixBytes.length, "KycSBT.requestKyc: Name too short"); 
         
         // 检查后缀
-        require(_hasSuffix(ensName, ".hsk"), "Invalid suffix");
+        require(_hasSuffix(ensName, suffix), "KycSBT.requestKyc: Invalid suffix");
         
         // 计算不包括后缀的长度
-        uint256 labelLength = nameBytes.length - 4; // 减去 .hsk 的长度
-        require(labelLength >= minNameLength, "Name too short");
+        uint256 labelLength = nameBytes.length - suffixBytes.length;
+        require(labelLength >= minNameLength, "KycSBT.requestKyc: Name too short");
 
-        require(msg.value >= registrationFee, "Insufficient fee");
-        require(ensNameToAddress[ensName] == address(0), "Name already registered");
-        require(kycInfos[msg.sender].status == KycStatus.NONE, "KYC already exists");
+        require(msg.value >= registrationFee, "KycSBT.requestKyc: Insufficient fee");
+        require(ensNameToAddress[ensName] == address(0), "KycSBT.requestKyc: Name already registered");
+        require(kycInfos[msg.sender].status == KycStatus.NONE, "KycSBT.requestKyc: KYC already exists");
 
         bytes32 node = keccak256(bytes(ensName));
         
@@ -62,11 +78,11 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         address user, 
         KycLevel level
     ) external onlyOwner whenNotPaused {
-        require(user != address(0), "Invalid address");
+        require(user != address(0), "KycSBT.approve: Invalid address");
         
         KycInfo storage info = kycInfos[user];
-        require(info.status == KycStatus.PENDING, "Invalid status");
-        require(!info.isWhitelisted, "Already approved");
+        require(info.status == KycStatus.PENDING, "KycSBT.approve: Invalid status");
+        require(!info.isWhitelisted, "KycSBT.approve: Already approved");
 
         // 更新状态
         info.status = KycStatus.APPROVED;
@@ -89,7 +105,7 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
 
     function revokeKyc(address user) external override onlyOwner {
         KycInfo storage info = kycInfos[user];
-        require(info.status == KycStatus.APPROVED, "Not approved");
+        require(info.status == KycStatus.APPROVED, "KycSBT.revokeKyc: Not approved");
 
         // 只更新状态，保留 ENS 信息
         info.status = KycStatus.REVOKED;
@@ -134,14 +150,14 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     }
 
     function addAdmin(address newAdmin) external onlyOwner {
-        require(!isAdmin[newAdmin], "Already admin");
+        require(!isAdmin[newAdmin], "KycSBT.addAdmin: Already admin");
         isAdmin[newAdmin] = true;
         adminCount++;
     }
 
     function removeAdmin(address admin) external onlyOwner {
-        require(isAdmin[admin], "Not admin");
-        require(adminCount > 1, "Cannot remove last admin");
+        require(isAdmin[admin], "KycSBT.removeAdmin: Not admin");
+        require(adminCount > 1, "KycSBT.removeAdmin: Cannot remove last admin");
         isAdmin[admin] = false;
         adminCount--;
     }
@@ -156,14 +172,14 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
 
     function withdrawFees() external onlyOwner {
         uint256 balance = address(this).balance;
-        require(balance > 0, "No fees to withdraw");
+        require(balance > 0, "KycSBT.withdrawFees: No fees to withdraw");
         (bool success, ) = msg.sender.call{value: balance}("");
-        require(success, "Transfer failed");
+        require(success, "KycSBT.withdrawFees: Transfer failed");
     }
 
-    function _hasSuffix(string memory str, string memory suffix) internal pure returns (bool) {
+    function _hasSuffix(string memory str, string memory _suffix) internal pure returns (bool) {
         bytes memory strBytes = bytes(str);
-        bytes memory suffixBytes = bytes(suffix);
+        bytes memory suffixBytes = bytes(_suffix);
         
         if (strBytes.length < suffixBytes.length) {
             return false;
