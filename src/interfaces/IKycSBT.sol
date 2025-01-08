@@ -17,6 +17,4 @@ interface IKycSBT {
     function approve(address user, KycLevel level) external;
     function revokeKyc(address user) external;
     function isHuman(address account) external view returns (bool, uint8);
-
-    // ... 其他管理函数 ...
 }

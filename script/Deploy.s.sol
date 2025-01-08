@@ -7,7 +7,11 @@ import "@ens-contracts/contracts/registry/ENSRegistry.sol";
 import "../src/KycSBT.sol";
 import "../src/KycResolver.sol";
 
-// forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast -vvvv
+/**
+ * @title KYC SBT Deployment Script
+ * @notice Handles the deployment and initialization of KYC SBT system
+ * @dev Run with: forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast -vvvv
+ */
 contract DeployScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -16,50 +20,51 @@ contract DeployScript is Script {
         
         vm.startBroadcast(deployerPrivateKey);
         
-        // 1. 部署 ENS Registry
+        // Step 1: Deploy ENS Registry
         ENSRegistry ensRegistry = new ENSRegistry();
         console.log("ENS Registry deployed at:", address(ensRegistry));
         
-        // 2. 部署 Resolver
+        // Step 2: Deploy KYC Resolver
         KycResolver resolver = new KycResolver(ENS(address(ensRegistry)));
         console.log("KYC Resolver deployed at:", address(resolver));
         
-        // 3. 部署并初始化 KycSBT
+        // Step 3: Deploy and initialize KYC SBT
         KycSBT kycSBT = new KycSBT();
         kycSBT.initialize();
         console.log("KYC SBT deployed at:", address(kycSBT));
         
-        // 4. 设置 ENS 和解析器
+        // Step 4: Configure ENS and Resolver
         kycSBT.setENSAndResolver(address(ensRegistry), address(resolver));
         
-        // 5. 设置 .hsk 域名
+        // Step 5: Set up ENS domain
         bytes32 rootNode = bytes32(0);
         bytes32 labelHash = keccak256("hsk");
         bytes32 hskNode = keccak256(abi.encodePacked(rootNode, labelHash));
         
-        // 先将 .hsk 域名所有权给到部署者
+        // Assign .hsk ownership to deployer temporarily
         ensRegistry.setSubnodeOwner(rootNode, labelHash, deployer);
         console.log("HSK node created and owned by deployer:", vm.toString(hskNode));
         
-        // 确认部署者是所有者后设置解析器
+        // Set resolver after ownership confirmation
         require(ensRegistry.owner(hskNode) == deployer, "Deployer not owner of HSK node");
         ensRegistry.setResolver(hskNode, address(resolver));
         console.log("Resolver set for HSK node");
         
-        // 将所有权转移给 KycSBT 合约
+        // Transfer .hsk ownership to KYC SBT contract
         ensRegistry.setSubnodeOwner(rootNode, labelHash, address(kycSBT));
         console.log("HSK node ownership transferred to KycSBT");
         
-        // 6. 添加管理员
+        // Step 6: Set up admin
         kycSBT.addAdmin(admin);
         console.log("Admin added:", admin);
         
-        // 7. 授权 KycSBT 合约可以操作 resolver
+        // Step 7: Transfer resolver ownership
         resolver.transferOwnership(address(kycSBT));
         console.log("Resolver ownership transferred to KycSBT");
 
         vm.stopBroadcast();
 
+        // Output deployment summary
         console.log("\nDeployment Summary:");
         console.log("==================");
         console.log("Deployer:", deployer);

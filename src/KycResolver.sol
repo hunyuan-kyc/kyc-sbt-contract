@@ -5,18 +5,28 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@ens-contracts/contracts/registry/ENS.sol";
 import "./interfaces/IKycResolver.sol";
 
+/**
+ * @title KYC Resolver Contract
+ * @notice ENS resolver that stores KYC verification status and address records
+ * @dev Implements ENS resolution for KYC verification status
+ */
 contract KycResolver is IKycResolver, Ownable {
     ENS public immutable ens;
     
-    mapping(bytes32 => bool) public isValidated;
-    mapping(bytes32 => uint8) public kycLevels;
-    mapping(bytes32 => uint256) public validUntil;
-    mapping(bytes32 => address) public ensAddrs;
+    // ENS node mappings
+    mapping(bytes32 => bool) public isValidated;     // KYC validation status
+    mapping(bytes32 => uint8) public kycLevels;      // KYC level for each node
+    mapping(bytes32 => uint256) public validUntil;   // Expiration timestamp
+    mapping(bytes32 => address) public ensAddrs;     // Address records
 
     constructor(ENS _ens) Ownable(msg.sender) {
         ens = _ens;
     }
 
+    /**
+     * @dev Checks if caller is authorized to modify the node
+     * @param node ENS node hash
+     */
     modifier authorised(bytes32 node) {
         require(msg.sender == owner() || ens.isApprovedForAll(ens.owner(node), msg.sender));
         _;

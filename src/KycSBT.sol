@@ -8,25 +8,37 @@ import "./KycSBTStorage.sol";
 import "./interfaces/IKycSBT.sol";
 import "./interfaces/IKycResolver.sol";
 
+/**
+ * @title KYC Soulbound Token
+ * @notice Implements KYC verification using ENS and Soulbound tokens
+ * @dev Non-transferable tokens representing KYC status, integrated with ENS
+ */
 contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT {
-
     
+    /**
+     * @dev Ensures the contract is not paused
+     */
     modifier whenNotPaused() {
         require(!paused, "KycSBT.whenNotPaused: Contract is paused");
         _;
     }
 
+    /**
+     * @dev Restricts function to admin or owner
+     */
     modifier onlyAdmin() {
         require(isAdmin[msg.sender] || owner() == msg.sender, "KycSBT.onlyAdmin: Not admin");
         _;
     }
-
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     // constructor() {
     //     _disableInitializers();
     // }
 
+    /**
+     * @dev Initializes the contract with default settings
+     */
     function initialize() public initializer {
         __ERC721_init("KYC SBT", "KYC");
         __Ownable_init(msg.sender);
@@ -34,33 +46,34 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         minNameLength = 5;
     }
 
-    // 添加设置后缀的函数
+    /**
+     * @dev Sets the suffix for ENS names
+     * @param newSuffix New suffix to be used (e.g., ".hsk")
+     */
     function setSuffix(string calldata newSuffix) external onlyOwner {
         require(bytes(newSuffix).length > 0, "KycSBT.setSuffix: Invalid suffix");
         require(bytes(newSuffix)[0] == bytes1("."), "KycSBT.setSuffix: Suffix must start with dot");
         suffix = newSuffix;
     }
 
+    /**
+     * @dev Requests KYC verification with an ENS name
+     * @param ensName The ENS name to be registered
+     */
     function requestKyc(string calldata ensName) external payable override whenNotPaused {
-        // 验证名称长度（不包括后缀）
         bytes memory nameBytes = bytes(ensName);
         bytes memory suffixBytes = bytes(suffix);
         require(nameBytes.length >= suffixBytes.length, "KycSBT.requestKyc: Name too short"); 
-        
-        // 检查后缀
         require(_hasSuffix(ensName, suffix), "KycSBT.requestKyc: Invalid suffix");
         
-        // 计算不包括后缀的长度
         uint256 labelLength = nameBytes.length - suffixBytes.length;
         require(labelLength >= minNameLength, "KycSBT.requestKyc: Name too short");
-
         require(msg.value >= registrationFee, "KycSBT.requestKyc: Insufficient fee");
         require(ensNameToAddress[ensName] == address(0), "KycSBT.requestKyc: Name already registered");
         require(kycInfos[msg.sender].status == KycStatus.NONE, "KycSBT.requestKyc: KYC already exists");
 
         bytes32 node = keccak256(bytes(ensName));
         
-        // 创建 KYC 信息
         KycInfo storage info = kycInfos[msg.sender];
         info.ensName = ensName;
         info.level = KycLevel.NONE;
@@ -70,10 +83,14 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         info.isWhitelisted = false;
 
         ensNameToAddress[ensName] = msg.sender;
-
         emit KycRequested(msg.sender, ensName);
     }
 
+    /**
+     * @dev Approves a KYC request for a user
+     * @param user Address of the user to approve
+     * @param level KYC level to assign
+     */
     function approve(
         address user, 
         KycLevel level
@@ -84,12 +101,11 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         require(info.status == KycStatus.PENDING, "KycSBT.approve: Invalid status");
         require(!info.isWhitelisted, "KycSBT.approve: Already approved");
 
-        // 更新状态
         info.status = KycStatus.APPROVED;
         info.level = level;
         info.isWhitelisted = true;
 
-        // 更新 ENS 解析器
+        // Update ENS resolver
         resolver.setAddr(info.ensNode, user);
         resolver.setKycStatus(
             info.ensNode,
@@ -103,15 +119,19 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         emit AddressApproved(user, level);
     }
 
+    /**
+     * @dev Revokes KYC status from a user
+     * @param user Address of the user to revoke
+     */
     function revokeKyc(address user) external override onlyOwner {
         KycInfo storage info = kycInfos[user];
         require(info.status == KycStatus.APPROVED, "KycSBT.revokeKyc: Not approved");
 
-        // 只更新状态，保留 ENS 信息
+        // Update status while keeping ENS information
         info.status = KycStatus.REVOKED;
         info.isWhitelisted = false;
 
-        // 更新 ENS 解析器状态
+        // Update ENS resolver status
         resolver.setKycStatus(
             info.ensNode,
             false,
@@ -123,6 +143,12 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         emit KycRevoked(user);
     }
 
+    /**
+     * @dev Checks if an address has valid KYC status
+     * @param account Address to check
+     * @return bool Whether the address is verified
+     * @return uint8 KYC level of the address
+     */
     function isHuman(address account) external view override returns (bool, uint8) {
         KycInfo memory info = kycInfos[account];
         
@@ -135,26 +161,48 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         return (false, 0);
     }
 
-    // 管理功能
+    // Admin Functions
+
+    /**
+     * @dev Sets the ENS registry and resolver addresses
+     * @param _ens Address of the ENS registry
+     * @param _resolver Address of the KYC resolver
+     */
     function setENSAndResolver(address _ens, address _resolver) external onlyOwner {
         ens = ENS(_ens);
         resolver = IKycResolver(_resolver);
     }
 
+    /**
+     * @dev Sets the registration fee
+     * @param newFee New fee amount in wei
+     */
     function setRegistrationFee(uint256 newFee) external onlyOwner {
         registrationFee = newFee;
     }
 
+    /**
+     * @dev Sets the minimum ENS name length
+     * @param newLength New minimum length
+     */
     function setMinNameLength(uint256 newLength) external onlyOwner {
         minNameLength = newLength;
     }
 
+    /**
+     * @dev Adds a new admin
+     * @param newAdmin Address of the new admin
+     */
     function addAdmin(address newAdmin) external onlyOwner {
         require(!isAdmin[newAdmin], "KycSBT.addAdmin: Already admin");
         isAdmin[newAdmin] = true;
         adminCount++;
     }
 
+    /**
+     * @dev Removes an admin
+     * @param admin Address of the admin to remove
+     */
     function removeAdmin(address admin) external onlyOwner {
         require(isAdmin[admin], "KycSBT.removeAdmin: Not admin");
         require(adminCount > 1, "KycSBT.removeAdmin: Cannot remove last admin");
@@ -162,14 +210,23 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         adminCount--;
     }
 
+    /**
+     * @dev Pauses all contract operations
+     */
     function emergencyPause() external onlyAdmin {
         paused = true;
     }
 
+    /**
+     * @dev Unpauses contract operations
+     */
     function emergencyUnpause() external onlyOwner {
         paused = false;
     }
 
+    /**
+     * @dev Withdraws collected fees to owner
+     */
     function withdrawFees() external onlyOwner {
         uint256 balance = address(this).balance;
         require(balance > 0, "KycSBT.withdrawFees: No fees to withdraw");
@@ -177,6 +234,12 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         require(success, "KycSBT.withdrawFees: Transfer failed");
     }
 
+    /**
+     * @dev Internal function to check if a string ends with a suffix
+     * @param str String to check
+     * @param _suffix Suffix to check for
+     * @return bool Whether the string ends with the suffix
+     */
     function _hasSuffix(string memory str, string memory _suffix) internal pure returns (bool) {
         bytes memory strBytes = bytes(str);
         bytes memory suffixBytes = bytes(_suffix);
