@@ -3,10 +3,10 @@ pragma solidity ^0.8.19;
 import "forge-std/console.sol";
 import "./KycSBTTest.sol";
 
-// success
+// Test contract for core KYC functionality
 contract KycSBTCoreTest is KycSBTTest {
     function testRequestKyc() public {
-        string memory label = "alice1";  // 6个字符
+        string memory label = "alice1";  // 6 characters
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
 
@@ -19,7 +19,7 @@ contract KycSBTCoreTest is KycSBTTest {
         kycSBT.requestKyc{value: fee}(ensName);
         vm.stopPrank();
 
-        // 验证状态
+        // Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel kycLevel,
@@ -39,18 +39,18 @@ contract KycSBTCoreTest is KycSBTTest {
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
 
-        // 用户请求 KYC
+        // User requests KYC
         vm.startPrank(user);
         vm.deal(user, fee);
         kycSBT.requestKyc{value: fee}(ensName);
         vm.stopPrank();
 
-        // owner 批准
+        // Owner approves
         vm.startPrank(owner);
         kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
         vm.stopPrank();
 
-        // 验证状态
+        // Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel kycLevel,
@@ -69,25 +69,25 @@ contract KycSBTCoreTest is KycSBTTest {
     }
 
     function testRevokeKyc() public {
-        // 1. 先完成 KYC 申请和批准流程
+        // 1. Complete KYC request and approval process
         string memory label = "alice1";
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
 
-        // 用户申请 KYC
+        // User requests KYC
         vm.startPrank(user);
         vm.deal(user, fee);
         kycSBT.requestKyc{value: fee}(ensName);
         vm.stopPrank();
 
-        // owner 批准 KYC
+        // Owner approves KYC
         vm.startPrank(owner);
         kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
 
-        // 2. 测试撤销 KYC
+        // 2. Test KYC revocation
         bytes32 ensNode = keccak256(bytes(ensName));
         
-        // 预期事件，按照实际触发顺序排列
+        // Expect events in actual trigger order
         vm.expectEmit(true, true, true, true);
         emit KycStatusChanged(ensNode, false, uint8(IKycSBT.KycLevel.BASIC));
         
@@ -99,7 +99,7 @@ contract KycSBTCoreTest is KycSBTTest {
         
         kycSBT.revokeKyc(user);
 
-        // 3. 验证状态
+        // 3. Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel kycLevel,
@@ -112,7 +112,7 @@ contract KycSBTCoreTest is KycSBTTest {
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
         assertFalse(whitelisted, "Should not be whitelisted");
         
-        // 4. 验证 ENS 解析器状态
+        // 4. Verify ENS resolver state
         assertFalse(resolver.isValid(ensNode), "ENS KYC status should be invalid");
         assertEq(resolver.addr(ensNode), user, "ENS address should remain unchanged");
 
@@ -120,28 +120,27 @@ contract KycSBTCoreTest is KycSBTTest {
     }
 
     function testIsHumanWithENS() public {
-        // 1. 先完成 KYC 申请和批准流程
         string memory label = "alice1";
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
 
-        // 用户申请 KYC
+        // User requests KYC
         vm.startPrank(user);
         vm.deal(user, fee);
         kycSBT.requestKyc{value: fee}(ensName);
         vm.stopPrank();
 
-        // owner 批准
+        // Owner approves
         vm.startPrank(owner);
         kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
         vm.stopPrank();
 
-        // 2. 验证 isHuman 查询
+        // Verify isHuman query
         (bool isValid, uint8 level) = kycSBT.isHuman(user);
         assertTrue(isValid, "Should be valid human");
         assertEq(level, uint8(IKycSBT.KycLevel.BASIC), "Should have BASIC level");
 
-        // 3. 验证非 KYC 用户
+        // Verify non-KYC user
         address nonKycUser = address(4);
         (isValid, level) = kycSBT.isHuman(nonKycUser);
         assertFalse(isValid, "Should not be valid human");

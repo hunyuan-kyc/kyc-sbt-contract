@@ -2,12 +2,14 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 import "../src/KycSBT.sol";
 import "../src/KycResolver.sol";
 import "@ens-contracts/contracts/registry/ENS.sol";
 import "@ens-contracts/contracts/registry/ENSRegistry.sol";
 import "../src/interfaces/IKycSBT.sol";
 
+// Base test contract for KYC SBT tests
 contract KycSBTTest is Test {
     KycSBT public kycSBT;
     KycResolver public resolver;
@@ -17,7 +19,6 @@ contract KycSBTTest is Test {
     address public admin = address(2);
     address public user = address(3);
 
-    // 定义所有事件
     event KycRequested(address indexed user, string ensName);
     event AddressApproved(address indexed user, IKycSBT.KycLevel level);
     event KycStatusUpdated(address indexed user, IKycSBT.KycStatus status);
@@ -29,33 +30,33 @@ contract KycSBTTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         
-        // 1. 部署 ENS Registry
+        // Deploy ENS Registry
         ens = ENS(address(new ENSRegistry()));
         
-        // 2. 部署解析器
+        // Deploy resolver
         resolver = new KycResolver(ens);
         
-        // 3. 部署并初始化 KycSBT
+        // Deploy and initialize KYC SBT
         kycSBT = new KycSBT();
         kycSBT.initialize();
         
-        // 4. 设置 ENS 和解析器
+        // Configure ENS and resolver
         kycSBT.setENSAndResolver(address(ens), address(resolver));
         
-        // 5. 设置 ENS 域名
+        // Set up ENS domain
         bytes32 hskNode = keccak256(abi.encodePacked(bytes32(0), keccak256("hsk")));
         ENSRegistry(address(ens)).setSubnodeOwner(bytes32(0), keccak256("hsk"), owner);
         
-        // 6. 设置解析器
+        // Set resolver
         ens.setResolver(hskNode, address(resolver));
         
-        // 7. 添加管理员
+        // Add admin
         kycSBT.addAdmin(admin);
         
-        // 8. 授权 KycSBT 合约可以操作 resolver
+        // Authorize KYC SBT contract to operate resolver
         resolver.transferOwnership(address(kycSBT));
         
-        // 9. 将 .hsk 域名所有权转移给 KycSBT
+        // Transfer .hsk domain ownership to KYC SBT
         ENSRegistry(address(ens)).setSubnodeOwner(bytes32(0), keccak256("hsk"), address(kycSBT));
         
         vm.stopPrank();

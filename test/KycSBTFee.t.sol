@@ -25,16 +25,16 @@ contract KycSBTFeeTest is KycSBTTest {
     }
 
     function testWithdrawFees() public {
-        // 先进行一次 KYC 请求来产生费用
+        // First request KYC to generate fees
         string memory ensName = "alice1.hsk";
         uint256 fee = kycSBT.registrationFee();
-
+        
         vm.startPrank(user);
         vm.deal(user, fee);
         kycSBT.requestKyc{value: fee}(ensName);
         vm.stopPrank();
-
-        // 记录提现前的余额
+        
+        // Record balance before withdrawal
         uint256 balanceBefore = owner.balance;
         uint256 contractBalance = address(kycSBT).balance;
         
@@ -42,7 +42,7 @@ contract KycSBTFeeTest is KycSBTTest {
         kycSBT.withdrawFees();
         vm.stopPrank();
 
-        // 验证提现后的余额
+        // Verify balance after withdrawal
         assertEq(owner.balance, balanceBefore + contractBalance, "Owner balance not updated correctly");
         assertEq(address(kycSBT).balance, 0, "Contract balance should be 0");
     }

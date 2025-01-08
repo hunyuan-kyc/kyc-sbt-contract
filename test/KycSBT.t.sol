@@ -9,7 +9,7 @@ import "@ens-contracts/contracts/registry/ENS.sol";
 import "@ens-contracts/contracts/registry/ENSRegistry.sol";
 import "../src/interfaces/IKycSBT.sol";
 
-// success
+// Test contract for KycSBT
 contract KycSBTTest is Test {
     KycSBT public kycSBT;
     KycResolver public resolver;
@@ -30,33 +30,33 @@ contract KycSBTTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         
-        // 1. 部署 ENS Registry
+        // 1. Deploy ENS Registry
         ens = ENS(address(new ENSRegistry()));
         
-        // 2. 部署解析器
+        // 2. Deploy resolver
         resolver = new KycResolver(ens);
         
-        // 3. 部署并初始化 KycSBT
+        // 3. Deploy and initialize KycSBT
         kycSBT = new KycSBT();
         kycSBT.initialize();
         
-        // 4. 设置 ENS 和解析器
+        // 4. Set ENS and resolver
         kycSBT.setENSAndResolver(address(ens), address(resolver));
         
-        // 5. 设置 ENS 域名
+        // 5. Set up ENS domain
         bytes32 hskNode = keccak256(abi.encodePacked(bytes32(0), keccak256("hsk")));
         ENSRegistry(address(ens)).setSubnodeOwner(bytes32(0), keccak256("hsk"), owner);
         
-        // 6. 设置解析器
+        // 6. Set resolver
         ens.setResolver(hskNode, address(resolver));
         
-        // 7. 添加管理员
+        // 7. Add admin
         kycSBT.addAdmin(admin);
         
-        // 8. 授权 KycSBT 合约可以操作 resolver
+        // 8. Authorize KycSBT contract to operate resolver
         resolver.transferOwnership(address(kycSBT));
         
-        // 9. 将 .hsk 域名所有权转移给 KycSBT
+        // 9. Transfer .hsk domain ownership to KycSBT
         ENSRegistry(address(ens)).setSubnodeOwner(bytes32(0), keccak256("hsk"), address(kycSBT));
         
         vm.stopPrank();
@@ -82,7 +82,7 @@ contract KycSBTTest is Test {
         
         kycSBT.requestKyc{value: fee}(ensName);
 
-        // 验证状态
+        // Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel kycLevel,
@@ -99,9 +99,9 @@ contract KycSBTTest is Test {
         vm.stopPrank();
     }
 
-    // 测试名称长度验证
+    // Test name length validation
     function testRequestKycNameTooShort() public {
-        string memory label = "abcd";  // 4个字符，不包括.hsk
+        string memory label = "abcd";  // 4 characters, excluding .hsk
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
 
@@ -114,8 +114,8 @@ contract KycSBTTest is Test {
     }
 
     function testApproveKyc() public {
-        // 先请求 KYC
-        string memory label = "alice1";  // 使用5个字符的名称
+        // First request KYC
+        string memory label = "alice1";  // Use 5 character name
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
 
@@ -124,7 +124,7 @@ contract KycSBTTest is Test {
         kycSBT.requestKyc{value: fee}(ensName);
         vm.stopPrank();
 
-        // 测试批准
+        // Test approval
         vm.startPrank(owner);
         
         vm.expectEmit(true, true, true, true);
@@ -132,7 +132,7 @@ contract KycSBTTest is Test {
         
         kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
         
-        // 验证状态
+        // Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel kycLevel,
@@ -153,20 +153,20 @@ contract KycSBTTest is Test {
     }
 
     function testApproveKycWithENS() public {
-        string memory label = "alice1";  // 使用5个字符的名称
+        string memory label = "alice1";  // Use 5 character name
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
 
-        // 1. 用户申请 KYC
+        // 1. User requests KYC
         vm.startPrank(user);
         vm.deal(user, fee);
         kycSBT.requestKyc{value: fee}(ensName);
         vm.stopPrank();
 
-        // 2. owner 批准 KYC，同时会更新 ENS
+        // 2. Owner approves KYC, which will also update ENS
         vm.startPrank(owner);
         
-        // 预期 ENS 相关事件
+        // Expect ENS related events
         vm.expectEmit(true, true, true, true);
         emit AddrChanged(keccak256(bytes(ensName)), user);
         
@@ -175,7 +175,7 @@ contract KycSBTTest is Test {
         
         kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
 
-        // 3. 验证 ENS 解析器状态
+        // 3. Verify ENS resolver state
         assertEq(resolver.addr(keccak256(bytes(ensName))), user, "ENS address not set correctly");
         assertTrue(resolver.isValid(keccak256(bytes(ensName))), "ENS KYC status not valid");
         assertEq(resolver.kycLevel(keccak256(bytes(ensName))), uint8(IKycSBT.KycLevel.BASIC), "ENS KYC level not set correctly");
@@ -184,36 +184,36 @@ contract KycSBTTest is Test {
     }
 
     function testRevokeKyc() public {
-        // 1. 先完成 KYC 申请和批准流程
+        // 1. Complete KYC request and approval process
         string memory label = "alice1";
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
         bytes32 ensNode = keccak256(bytes(ensName));
 
-        // 用户申请 KYC
+        // User requests KYC
         vm.startPrank(user);
         vm.deal(user, fee);
         kycSBT.requestKyc{value: fee}(ensName);
         vm.stopPrank();
 
-        // owner 批准 KYC
+        // Owner approves KYC
         vm.startPrank(owner);
         kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
 
-        // 2. 测试撤销 KYC
-        // 预期事件，按照实际触发顺序排列
+        // 2. Test KYC revocation
+        // Expect events in actual trigger order
         vm.expectEmit(true, true, true, true);
-        emit KycStatusChanged(ensNode, false, uint8(IKycSBT.KycLevel.BASIC));  // 第一个事件
+        emit KycStatusChanged(ensNode, false, uint8(IKycSBT.KycLevel.BASIC));  // First event
         
         vm.expectEmit(true, true, true, true);
-        emit KycStatusUpdated(user, IKycSBT.KycStatus.REVOKED);  // 第二个事件
+        emit KycStatusUpdated(user, IKycSBT.KycStatus.REVOKED);  // Second event
         
         vm.expectEmit(true, true, true, true);
-        emit KycRevoked(user);  // 第三个事件
+        emit KycRevoked(user);  // Third event
         
         kycSBT.revokeKyc(user);
 
-        // 3. 验证状态
+        // 3. Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel kycLevel,
@@ -226,7 +226,7 @@ contract KycSBTTest is Test {
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
         assertFalse(whitelisted, "Should not be whitelisted");
         
-        // 4. 验证 ENS 解析器状态
+        // 4. Verify ENS resolver state
         assertFalse(resolver.isValid(ensNode), "ENS KYC status should be invalid");
         assertEq(resolver.addr(ensNode), user, "ENS address should remain unchanged");
 
@@ -234,13 +234,13 @@ contract KycSBTTest is Test {
     }
 
     function testRevokeKycRevert() public {
-        // 测试撤销未批准的 KYC
+        // Test revoking unapproved KYC
         vm.startPrank(owner);
         vm.expectRevert("KycSBT.revokeKyc: Not approved");
         kycSBT.revokeKyc(user);
         vm.stopPrank();
 
-        // 测试非 owner 撤销
+        // Test non-owner revocation
         string memory label = "alice1";
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
@@ -257,15 +257,15 @@ contract KycSBTTest is Test {
     }
 
     function testIsHumanWithENS() public {
-        // 1. 完成 KYC 流程
+        // 1. Complete KYC process
         testApproveKycWithENS();
 
-        // 2. 验证 isHuman 查询
+        // 2. Verify isHuman query
         (bool isValid, uint8 level) = kycSBT.isHuman(user);
         assertTrue(isValid, "Should be valid human");
         assertEq(level, uint8(IKycSBT.KycLevel.BASIC), "Should have BASIC level");
 
-        // 3. 验证非 KYC 用户
+        // 3. Verify non-KYC user
         address nonKycUser = address(4);
         (isValid, level) = kycSBT.isHuman(nonKycUser);
         assertFalse(isValid, "Should not be valid human");

@@ -59,13 +59,13 @@ contract KycSBTAdminTest is KycSBTTest {
     }
 
     function testEmergencyPause() public {
-        // 测试 owner 暂停
+        // Test pause by owner
         vm.startPrank(owner);
         kycSBT.emergencyPause();
         vm.stopPrank();
         assertTrue(kycSBT.paused());
 
-        // 测试 admin 暂停
+        // Test pause by admin
         vm.startPrank(admin);
         kycSBT.emergencyPause();
         vm.stopPrank();
@@ -80,24 +80,24 @@ contract KycSBTAdminTest is KycSBTTest {
     }
 
     function testEmergencyUnpause() public {
-        // 先暂停
+        // Pause first
         vm.startPrank(owner);
         kycSBT.emergencyPause();
         assertTrue(kycSBT.paused());
 
-        // 测试解除暂停
+        // Test unpause
         kycSBT.emergencyUnpause();
         assertFalse(kycSBT.paused());
         vm.stopPrank();
     }
 
     function testEmergencyUnpauseNotOwner() public {
-        // 先暂停
+        // Pause first
         vm.startPrank(owner);
         kycSBT.emergencyPause();
         vm.stopPrank();
 
-        // 测试 admin 不能解除暂停
+        // Test admin cannot unpause
         vm.startPrank(admin);
         vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", admin));
         kycSBT.emergencyUnpause();
@@ -105,12 +105,12 @@ contract KycSBTAdminTest is KycSBTTest {
     }
 
     function testPausedOperations() public {
-        // 先暂停
+        // Pause first
         vm.startPrank(owner);
         kycSBT.emergencyPause();
         vm.stopPrank();
 
-        // 测试暂停状态下的操作
+        // Test operations when paused
         string memory ensName = "alice1.hsk";
         uint256 fee = kycSBT.registrationFee();
 
@@ -124,7 +124,7 @@ contract KycSBTAdminTest is KycSBTTest {
     function testCannotRemoveLastAdmin() public {
         vm.startPrank(owner);
         vm.expectRevert("KycSBT.removeAdmin: Cannot remove last admin");
-        kycSBT.removeAdmin(admin);  // admin 是唯一的管理员
+        kycSBT.removeAdmin(admin);  // admin is the only admin
         vm.stopPrank();
     }
 
@@ -133,17 +133,17 @@ contract KycSBTAdminTest is KycSBTTest {
         address newAdmin2 = address(5);
         
         vm.startPrank(owner);
-        // 添加两个新管理员
+        // Add two new admins
         kycSBT.addAdmin(newAdmin1);
         kycSBT.addAdmin(newAdmin2);
         
-        // 验证管理员数量
+        // Verify admin count
         assertEq(kycSBT.adminCount(), 3);
         assertTrue(kycSBT.isAdmin(admin));
         assertTrue(kycSBT.isAdmin(newAdmin1));
         assertTrue(kycSBT.isAdmin(newAdmin2));
 
-        // 移除一个管理员
+        // Remove an admin
         kycSBT.removeAdmin(newAdmin1);
         assertEq(kycSBT.adminCount(), 2);
         assertFalse(kycSBT.isAdmin(newAdmin1));
@@ -151,20 +151,20 @@ contract KycSBTAdminTest is KycSBTTest {
     }
 
     function testPausedAdminOperations() public {
-        // 先暂停合约
+        // Pause contract first
         vm.startPrank(owner);
         kycSBT.emergencyPause();
         vm.stopPrank();
 
-        // 测试暂停状态下的管理员操作
+        // Test admin operations when paused
         vm.startPrank(admin);
         
-        // 管理员仍然可以执行某些操作
-        kycSBT.emergencyPause();  // 这应该可以执行
+        // Admins can still perform certain operations
+        kycSBT.emergencyPause();  // This should be possible
         
         vm.stopPrank();
         
-        // 但用户操作应该被阻止
+        // But user operations should be blocked
         vm.startPrank(user);
         string memory ensName = "alice1.hsk";
         uint256 fee = kycSBT.registrationFee();
@@ -176,17 +176,17 @@ contract KycSBTAdminTest is KycSBTTest {
     }
 
     function testAdminPermissions() public {
-        // 测试管理员的权限范围
+        // Test admin's permission scope
         vm.startPrank(admin);
         
-        // 管理员不能执行 owner 专属操作
+        // Admins cannot perform owner-exclusive operations
         vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", admin));
         kycSBT.setRegistrationFee(0.02 ether);
         
         vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", admin));
         kycSBT.emergencyUnpause();
         
-        // 但可以执行管理员操作
+        // But can perform admin operations
         kycSBT.emergencyPause();
         assertTrue(kycSBT.paused());
         
@@ -196,7 +196,7 @@ contract KycSBTAdminTest is KycSBTTest {
     function testOwnerPrivileges() public {
         vm.startPrank(owner);
         
-        // owner 可以执行所有操作
+        // Owner can perform all operations
         kycSBT.setRegistrationFee(0.02 ether);
         assertEq(kycSBT.registrationFee(), 0.02 ether);
         

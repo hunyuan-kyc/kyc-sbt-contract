@@ -3,10 +3,10 @@ pragma solidity ^0.8.19;
 
 import "./KycSBTTest.sol";
 
-//success
+// Test contract for validation-related functionality
 contract KycSBTValidationTest is KycSBTTest {
     function testRequestKycNameTooShort() public {
-        string memory label = "abcd";  // 4个字符
+        string memory label = "abcd";  // 4 characters
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
         uint256 fee = kycSBT.registrationFee();
 
@@ -19,7 +19,7 @@ contract KycSBTValidationTest is KycSBTTest {
     }
 
     function testInvalidSuffix() public {
-        string memory ensName = "alice1.eth";  // 正确长度但错误后缀
+        string memory ensName = "alice1.eth";  // Correct length but wrong suffix
         uint256 fee = kycSBT.registrationFee();
 
         vm.startPrank(user);
@@ -35,7 +35,7 @@ contract KycSBTValidationTest is KycSBTTest {
         uint256 fee = kycSBT.registrationFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee / 2);  // 只发一半的费用
+        vm.deal(user, fee / 2);  // Only send half of the required fee
         
         vm.expectRevert("KycSBT.requestKyc: Insufficient fee");
         kycSBT.requestKyc{value: fee / 2}(ensName);
@@ -54,7 +54,7 @@ contract KycSBTValidationTest is KycSBTTest {
 
     function testSetSuffixNotOwner() public {
         string memory newSuffix = ".kyc";
-        
+
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
         kycSBT.setSuffix(newSuffix);
@@ -64,11 +64,11 @@ contract KycSBTValidationTest is KycSBTTest {
     function testSetInvalidSuffix() public {
         vm.startPrank(owner);
         
-        // 测试空后缀
+        // Test empty suffix
         vm.expectRevert("KycSBT.setSuffix: Invalid suffix");
         kycSBT.setSuffix("");
 
-        // 测试不带点的后缀
+        // Test suffix without dot
         vm.expectRevert("KycSBT.setSuffix: Suffix must start with dot");
         kycSBT.setSuffix("hsk");
         
@@ -76,13 +76,13 @@ contract KycSBTValidationTest is KycSBTTest {
     }
 
     function testRequestKycWithNewSuffix() public {
-        // 设置新后缀
+        // Set new suffix
         string memory newSuffix = ".kyc";
         vm.startPrank(owner);
         kycSBT.setSuffix(newSuffix);
         vm.stopPrank();
 
-        // 使用新后缀请求 KYC
+        // Request KYC with new suffix
         string memory label = "alice1";
         string memory ensName = string(abi.encodePacked(label, newSuffix));
         uint256 fee = kycSBT.registrationFee();
@@ -92,7 +92,7 @@ contract KycSBTValidationTest is KycSBTTest {
         kycSBT.requestKyc{value: fee}(ensName);
         vm.stopPrank();
 
-        // 验证状态
+        // Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel level,
