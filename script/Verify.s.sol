@@ -10,15 +10,29 @@ import "@ens-contracts/contracts/registry/ENSRegistry.sol";
 /**
  * @title KYC SBT Verification Script
  * @notice Verifies the deployment and configuration of KYC SBT system
- * @dev Run with: forge script script/Verify.s.sol --rpc-url $RPC_URL --broadcast -vvvv
+ * @dev Run with: forge script script/Verify.s.sol --rpc-url $RPC_URL -vvvv
  */
 contract VerifyScript is Script {
-    function run() external view {
-        // Load contract addresses from environment
-        address kycSBTAddress = vm.envAddress("KYCSBT_ADDRESS");
-        address ensAddress = vm.envAddress("ENS_ADDRESS");
-        address resolverAddress = vm.envAddress("RESOLVER_ADDRESS");
-        address admin = vm.envAddress("ADMIN_ADDRESS");
+    function run() external {
+        string memory path = "output/config.json";
+        string memory json = vm.readFile(path);
+        
+        // Load addresses from config
+        address deployer = abi.decode(vm.parseJson(json, ".deployer"), (address));
+        address ensAddress = abi.decode(vm.parseJson(json, ".ensRegistry"), (address));
+        address resolverAddress = abi.decode(vm.parseJson(json, ".kycResolver"), (address));
+        address kycSBTAddress = abi.decode(vm.parseJson(json, ".kycSBT"), (address));
+        address admin = abi.decode(vm.parseJson(json, ".admin"), (address));
+        bytes32 hskNode = abi.decode(vm.parseJson(json, ".hskNode"), (bytes32));
+
+        console.log("\n=== Loading Configuration ===");
+        console.log("Config file:", path);
+        console.log("Deployer:", deployer);
+        console.log("ENS Registry:", ensAddress);
+        console.log("KYC Resolver:", resolverAddress);
+        console.log("KYC SBT:", kycSBTAddress);
+        console.log("Admin:", admin);
+        console.log("HSK Node:", vm.toString(hskNode));
 
         // Load contract instances
         KycSBT kycSBT = KycSBT(kycSBTAddress);
@@ -44,7 +58,6 @@ contract VerifyScript is Script {
         require(address(kycSBT.resolver()) == resolverAddress, "Resolver address mismatch");
 
         // Step 3: Verify ENS domain settings
-        bytes32 hskNode = keccak256(abi.encodePacked(bytes32(0), keccak256("hsk")));
         console.log("\nENS Domain Settings:");
         console.log("HSK Node:", vm.toString(hskNode));
         console.log("HSK Owner:", ens.owner(hskNode));

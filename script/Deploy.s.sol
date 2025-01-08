@@ -64,14 +64,17 @@ contract DeployScript is Script {
 
         vm.stopBroadcast();
 
-        // Output deployment summary
-        console.log("\nDeployment Summary:");
-        console.log("==================");
-        console.log("Deployer:", deployer);
-        console.log("ENS Registry:", address(ensRegistry));
-        console.log("KYC Resolver:", address(resolver));
-        console.log("KYC SBT:", address(kycSBT));
-        console.log("HSK Node:", vm.toString(hskNode));
-        console.log("Admin:", admin);
+        // Create deployment config
+        string memory json = vm.serializeAddress("config", "deployer", deployer);
+        json = vm.serializeAddress("config", "ensRegistry", address(ensRegistry));
+        json = vm.serializeAddress("config", "kycResolver", address(resolver));
+        json = vm.serializeAddress("config", "kycSBT", address(kycSBT));
+        json = vm.serializeAddress("config", "admin", admin);
+        json = vm.serializeBytes32("config", "hskNode", hskNode);
+
+        // Save to file
+        string memory path = "output/config.json";
+        vm.writeJson(json, path);
+        console.log("\nDeployment config saved to:", path);
     }
 } 
