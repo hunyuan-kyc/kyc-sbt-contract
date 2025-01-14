@@ -7,6 +7,7 @@ interface IKycSBT {
 
     // Events
     event KycRequested(address indexed user, string ensName);
+    event KycRejected(address indexed user, string reason);
     event KycLevelUpdated(address indexed user, KycLevel oldLevel, KycLevel newLevel);
     event KycStatusUpdated(address indexed user, KycStatus status);
     event KycRevoked(address indexed user);
@@ -15,6 +16,7 @@ interface IKycSBT {
     // Core functions
     function requestKyc(string calldata ensName) external payable;
     function approve(address user, KycLevel level) external;
+    function reject(address user, string calldata reason) external;
     function revokeKyc(address user) external;
     function isHuman(address account) external view returns (bool, uint8);
 }

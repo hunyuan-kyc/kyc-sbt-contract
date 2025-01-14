@@ -20,6 +20,7 @@ contract KycSBTTest is Test {
     address public user = address(3);
 
     event KycRequested(address indexed user, string ensName);
+    event KycRejected(address indexed user, string reason);
     event AddressApproved(address indexed user, IKycSBT.KycLevel level);
     event KycStatusUpdated(address indexed user, IKycSBT.KycStatus status);
     event KycLevelUpdated(address indexed user, IKycSBT.KycLevel oldLevel, IKycSBT.KycLevel newLevel);
@@ -230,6 +231,117 @@ contract KycSBTTest is Test {
         assertFalse(resolver.isValid(ensNode), "ENS KYC status should be invalid");
         assertEq(resolver.addr(ensNode), user, "ENS address should remain unchanged");
 
+        vm.stopPrank();
+    }
+
+    function testRejectKyc() public {
+        // 1. First request KYC
+        string memory label = "alice1";  // Use 5 character name
+        string memory ensName = string(abi.encodePacked(label, ".hsk"));
+        uint256 fee = kycSBT.registrationFee();
+        bytes32 ensNode = keccak256(bytes(ensName));
+
+        vm.startPrank(user);
+        vm.deal(user, fee);
+        kycSBT.requestKyc{value: fee}(ensName);
+        vm.stopPrank();
+
+        // 2. Test KYC rejection
+        string memory reason = "Invalid documentation";
+        
+        vm.startPrank(owner);
+        
+        // Expect events in actual trigger order
+        vm.expectEmit(true, true, true, true);
+        emit KycStatusChanged(ensNode, false, uint8(IKycSBT.KycLevel.NONE));  // 1. resolver event
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycStatusUpdated(user, IKycSBT.KycStatus.REJECTED);  // 2. status update event
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycRejected(user, reason);  // 3. rejection event
+        
+        kycSBT.reject(user, reason);
+        
+        // 3. Verify state
+        (
+            string memory storedName,
+            IKycSBT.KycLevel kycLevel,
+            IKycSBT.KycStatus kycStatus,
+            uint256 expiry,
+            bytes32 storedNode,
+            bool whitelisted
+        ) = kycSBT.kycInfos(user);
+
+        assertEq(storedName, ensName, "ENS name mismatch");
+        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REJECTED), "Status should be REJECTED");
+        assertFalse(whitelisted, "Should not be whitelisted");
+        
+        // 4. Verify ENS resolver state
+        assertFalse(resolver.isValid(ensNode), "ENS KYC status should be invalid");
+        assertEq(resolver.addr(ensNode), user, "ENS address should remain unchanged");
+
+        vm.stopPrank();
+    }
+
+    function testRejectKycRevert() public {
+        // 1. Test rejecting non-existent KYC
+        vm.startPrank(owner);
+        vm.expectRevert("KycSBT.reject: Invalid status");
+        kycSBT.reject(user, "No request found");
+        vm.stopPrank();
+
+        // 2. Test unauthorized rejection
+        string memory ensName = string(abi.encodePacked("alice1", ".hsk"));
+        uint256 fee = kycSBT.registrationFee();
+
+        vm.startPrank(user);
+        vm.deal(user, fee);
+        kycSBT.requestKyc{value: fee}(ensName);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
+        kycSBT.reject(user, "Unauthorized rejection");
+        vm.stopPrank();
+    }
+
+    function testCannotApproveRejectedKyc() public {
+        // 1. Request KYC
+        string memory ensName = string(abi.encodePacked("alice1", ".hsk"));
+        uint256 fee = kycSBT.registrationFee();
+
+        vm.startPrank(user);
+        vm.deal(user, fee);
+        kycSBT.requestKyc{value: fee}(ensName);
+        vm.stopPrank();
+
+        // 2. Reject KYC
+        vm.startPrank(owner);
+        kycSBT.reject(user, "Invalid documentation");
+
+        // 3. Try to approve rejected KYC
+        vm.expectRevert("KycSBT.approve: Invalid status");
+        kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
+        vm.stopPrank();
+    }
+
+    function testRejectAfterApprove() public {
+        // 1. Request and approve KYC
+        string memory ensName = string(abi.encodePacked("alice1", ".hsk"));
+        uint256 fee = kycSBT.registrationFee();
+
+        vm.startPrank(user);
+        vm.deal(user, fee);
+        kycSBT.requestKyc{value: fee}(ensName);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
+
+        // 2. Try to reject approved KYC
+        vm.expectRevert("KycSBT.reject: Invalid status");
+        kycSBT.reject(user, "Cannot reject approved KYC");
         vm.stopPrank();
     }
 

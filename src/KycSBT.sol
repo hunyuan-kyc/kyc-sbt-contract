@@ -83,6 +83,8 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         info.isWhitelisted = false;
 
         ensNameToAddress[ensName] = msg.sender;
+        resolver.setAddr(node, msg.sender);
+        
         emit KycRequested(msg.sender, ensName);
     }
 
@@ -119,6 +121,34 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         emit AddressApproved(user, level);
     }
 
+    /**
+     * @dev Rejects a KYC request
+     * @param user Address of the user to reject
+     * @param reason Reason for rejection
+     */
+    function reject(
+        address user,
+        string calldata reason
+    ) external override onlyOwner whenNotPaused {
+        KycInfo storage info = kycInfos[user];
+        require(info.status == KycStatus.PENDING, "KycSBT.reject: Invalid status");
+        
+        // Update status
+        info.status = KycStatus.REJECTED;
+        info.isWhitelisted = false;
+        
+        // Clear ENS resolver status if needed
+        resolver.setKycStatus(
+            info.ensNode,
+            false,
+            uint8(info.level),
+            0
+        );
+        
+        emit KycStatusUpdated(user, KycStatus.REJECTED);
+        emit KycRejected(user, reason);
+    }
+    
     /**
      * @dev Revokes KYC status from a user
      * @param user Address of the user to revoke
