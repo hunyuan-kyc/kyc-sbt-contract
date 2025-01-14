@@ -285,4 +285,52 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         }
         return true;
     }
+
+    /**
+     * @dev TEST ONLY: Request and auto approve KYC in one transaction (Only for testnet)
+     * @notice This function will be removed before mainnet deployment
+     * @param ensName ENS name to register
+     */
+    function requestKycAndApprove(string calldata ensName) external payable whenNotPaused {
+        // 1. Validate registration fee
+        require(msg.value >= registrationFee, "KycSBT: Insufficient fee");
+        
+        // 2. Validate name length
+        bytes memory nameBytes = bytes(ensName);
+        require(nameBytes.length >= minNameLength, "KycSBT: Name too short");
+        
+        // 3. Validate suffix
+        require(_hasSuffix(ensName, suffix), "KycSBT: Invalid suffix");
+        
+        // 4. Check if name is available
+        require(ensNameToAddress[ensName] == address(0), "KycSBT: Name taken");
+
+        bytes32 node = keccak256(bytes(ensName));
+        
+        // 5. Store KYC info
+        KycInfo storage info = kycInfos[msg.sender];
+        info.ensName = ensName;
+        info.level = KycLevel.BASIC;  // Auto set to BASIC level
+        info.status = KycStatus.APPROVED;  // Auto approve
+        info.expirationTime = block.timestamp + 365 days;
+        info.ensNode = node;
+        info.isWhitelisted = true;
+
+        ensNameToAddress[ensName] = msg.sender;
+        
+        // 6. Update ENS resolver
+        resolver.setAddr(node, msg.sender);
+        resolver.setKycStatus(
+            node,
+            true,
+            uint8(KycLevel.BASIC),
+            info.expirationTime
+        );
+
+        // 7. Emit events
+        emit KycRequested(msg.sender, ensName);
+        emit KycStatusUpdated(msg.sender, KycStatus.APPROVED);
+        emit KycLevelUpdated(msg.sender, KycLevel.NONE, KycLevel.BASIC);
+        emit AddressApproved(msg.sender, KycLevel.BASIC);
+    }
 } 

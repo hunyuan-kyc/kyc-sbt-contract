@@ -15,6 +15,8 @@ interface IKycSBT {
 
     // Core functions
     function requestKyc(string calldata ensName) external payable;
+    // TEST ONLY: Request and auto approve KYC in one transaction (Only for testnet)
+    function requestKycAndApprove(string calldata ensName) external payable;
     function approve(address user, KycLevel level) external;
     function reject(address user, string calldata reason) external;
     function revokeKyc(address user) external;
