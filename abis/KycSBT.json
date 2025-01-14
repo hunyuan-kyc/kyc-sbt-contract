@@ -400,6 +400,19 @@
   },
   {
     "type": "function",
+    "name": "requestKycAndApprove",
+    "inputs": [
+      {
+        "name": "ensName",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
     "name": "resolver",
     "inputs": [],
     "outputs": [
