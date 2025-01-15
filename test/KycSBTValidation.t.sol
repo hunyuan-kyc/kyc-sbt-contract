@@ -90,20 +90,32 @@ contract KycSBTValidationTest is KycSBTTest {
         vm.startPrank(user);
         vm.deal(user, fee);
         kycSBT.requestKyc{value: fee}(ensName);
-        vm.stopPrank();
 
         // Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel level,
             IKycSBT.KycStatus status,
-            uint256 expiry,
-            bytes32 ensNode,
-            bool whitelisted
-        ) = kycSBT.kycInfos(user);
+            uint256 createTime
+        ) = kycSBT.getKycInfo(user);
 
         assertEq(storedName, ensName, "ENS name mismatch");
-        assertEq(uint8(status), uint8(IKycSBT.KycStatus.PENDING), "Status should be PENDING");
-        assertFalse(whitelisted, "Should not be whitelisted");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
+        assertEq(uint8(level), uint8(IKycSBT.KycLevel.BASIC), "Level should be BASIC");
+        assertGt(createTime, 0, "Create time should be set");
+    }
+
+    function testDuplicateRequest() public {
+        string memory ensName = "alice1.hsk";
+        uint256 fee = kycSBT.registrationFee();
+
+        vm.startPrank(user);
+        vm.deal(user, fee * 2);
+        
+        kycSBT.requestKyc{value: fee}(ensName);
+        
+        vm.expectRevert("KycSBT.requestKyc: Name already registered");
+        kycSBT.requestKyc{value: fee}(ensName);
+        vm.stopPrank();
     }
 } 

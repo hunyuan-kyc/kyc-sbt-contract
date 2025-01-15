@@ -15,7 +15,6 @@ import "../src/KycResolver.sol";
 contract DeployScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address admin = vm.envAddress("ADMIN_ADDRESS");
         address deployer = vm.addr(deployerPrivateKey);
         
         vm.startBroadcast(deployerPrivateKey);
@@ -54,11 +53,7 @@ contract DeployScript is Script {
         ensRegistry.setSubnodeOwner(rootNode, labelHash, address(kycSBT));
         console.log("HSK node ownership transferred to KycSBT");
         
-        // Step 6: Set up admin
-        kycSBT.addAdmin(admin);
-        console.log("Admin added:", admin);
-        
-        // Step 7: Transfer resolver ownership
+        // Step 6: Transfer resolver ownership
         resolver.transferOwnership(address(kycSBT));
         console.log("Resolver ownership transferred to KycSBT");
 
@@ -69,8 +64,8 @@ contract DeployScript is Script {
         json = vm.serializeAddress("config", "ensRegistry", address(ensRegistry));
         json = vm.serializeAddress("config", "kycResolver", address(resolver));
         json = vm.serializeAddress("config", "kycSBT", address(kycSBT));
-        json = vm.serializeAddress("config", "admin", admin);
         json = vm.serializeBytes32("config", "hskNode", hskNode);
+        json = vm.serializeUint("config", "validityPeriod", kycSBT.validityPeriod());
 
         // Save to file
         string memory path = "output/config.json";

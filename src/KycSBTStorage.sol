@@ -10,25 +10,19 @@ abstract contract KycSBTStorage {
         string ensName;          // ENS domain name
         IKycSBT.KycLevel level;  // KYC level
         IKycSBT.KycStatus status; // KYC status
-        uint256 expirationTime;  // Expiration timestamp
-        bytes32 ensNode;         // ENS node hash
-        bool isWhitelisted;      // Whether the address is whitelisted
+        uint256 createTime;      // Creation timestamp
     }
     
     // Configuration
     uint256 public registrationFee;  // Fee required for KYC registration
     uint256 public minNameLength;    // Minimum length required for ENS names
-    uint256 public validityPeriod;   // Period for which KYC is valid
+    uint256 public validityPeriod;   // Period for which KYC is valid (in seconds)
     bool public paused;              // Emergency pause flag
     string public suffix = ".hsk";   // Default ENS suffix
 
     // ENS Configuration
     ENS public ens;                  // ENS Registry contract
     IKycResolver public resolver;    // ENS Resolver contract
-    
-    // Admin management
-    mapping(address => bool) public isAdmin;    // Admin role mapping
-    uint256 public adminCount;                  // Number of admins
     
     // KYC mappings
     mapping(address => KycInfo) public kycInfos;         // Maps address to KYC info

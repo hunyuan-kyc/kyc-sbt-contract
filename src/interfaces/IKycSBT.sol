@@ -2,23 +2,30 @@
 pragma solidity ^0.8.19;
 
 interface IKycSBT {
-    enum KycLevel { NONE, BASIC, ADVANCED, PREMIUM }
-    enum KycStatus { NONE, PENDING, APPROVED, REJECTED, REVOKED }
+    enum KycLevel { NONE, BASIC, ADVANCED, PREMIUM, ULTIMATE }
+    enum KycStatus { NONE, APPROVED, REVOKED }
 
     // Events
     event KycRequested(address indexed user, string ensName);
-    event KycRejected(address indexed user, string reason);
     event KycLevelUpdated(address indexed user, KycLevel oldLevel, KycLevel newLevel);
     event KycStatusUpdated(address indexed user, KycStatus status);
     event KycRevoked(address indexed user);
+    event KycRestored(address indexed user);
     event AddressApproved(address indexed user, KycLevel level);
+    event ValidityPeriodUpdated(uint256 newPeriod);
 
     // Core functions
     function requestKyc(string calldata ensName) external payable;
-    // TEST ONLY: Request and auto approve KYC in one transaction (Only for testnet)
-    function requestKycAndApprove(string calldata ensName) external payable;
-    function approve(address user, KycLevel level) external;
-    function reject(address user, string calldata reason) external;
     function revokeKyc(address user) external;
+    function restoreKyc(address user) external;
     function isHuman(address account) external view returns (bool, uint8);
+    function getKycInfo(address account) external view returns (
+        string memory ensName,
+        KycLevel level,
+        KycStatus status,
+        uint256 createTime
+    );
+
+    // Configuration functions
+    function setValidityPeriod(uint256 newPeriod) external;
 }

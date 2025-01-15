@@ -16,16 +16,16 @@ contract KycSBTTest is Test {
     ENS public ens;
 
     address public owner = address(1);
-    address public admin = address(2);
     address public user = address(3);
 
     event KycRequested(address indexed user, string ensName);
-    event AddressApproved(address indexed user, IKycSBT.KycLevel level);
     event KycStatusUpdated(address indexed user, IKycSBT.KycStatus status);
     event KycLevelUpdated(address indexed user, IKycSBT.KycLevel oldLevel, IKycSBT.KycLevel newLevel);
     event AddrChanged(bytes32 indexed node, address addr);
     event KycStatusChanged(bytes32 indexed node, bool isValid, uint8 level);
     event KycRevoked(address indexed user);
+    event KycRestored(address indexed user);
+    event ValidityPeriodUpdated(uint256 newPeriod);
 
     function setUp() public {
         vm.startPrank(owner);
@@ -49,9 +49,6 @@ contract KycSBTTest is Test {
         
         // Set resolver
         ens.setResolver(hskNode, address(resolver));
-        
-        // Add admin
-        kycSBT.addAdmin(admin);
         
         // Authorize KYC SBT contract to operate resolver
         resolver.transferOwnership(address(kycSBT));

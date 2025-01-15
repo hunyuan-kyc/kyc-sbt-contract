@@ -22,8 +22,8 @@ contract VerifyScript is Script {
         address ensAddress = abi.decode(vm.parseJson(json, ".ensRegistry"), (address));
         address resolverAddress = abi.decode(vm.parseJson(json, ".kycResolver"), (address));
         address kycSBTAddress = abi.decode(vm.parseJson(json, ".kycSBT"), (address));
-        address admin = abi.decode(vm.parseJson(json, ".admin"), (address));
         bytes32 hskNode = abi.decode(vm.parseJson(json, ".hskNode"), (bytes32));
+        uint256 validityPeriod = abi.decode(vm.parseJson(json, ".validityPeriod"), (uint256));
 
         console.log("\n=== Loading Configuration ===");
         console.log("Config file:", path);
@@ -31,8 +31,8 @@ contract VerifyScript is Script {
         console.log("ENS Registry:", ensAddress);
         console.log("KYC Resolver:", resolverAddress);
         console.log("KYC SBT:", kycSBTAddress);
-        console.log("Admin:", admin);
         console.log("HSK Node:", vm.toString(hskNode));
+        console.log("Validity Period:", validityPeriod);
 
         // Load contract instances
         KycSBT kycSBT = KycSBT(kycSBTAddress);
@@ -46,9 +46,11 @@ contract VerifyScript is Script {
         console.log("Registration Fee:", kycSBT.registrationFee());
         console.log("Min Name Length:", kycSBT.minNameLength());
         console.log("Default Suffix:", kycSBT.suffix());
+        console.log("Validity Period:", kycSBT.validityPeriod());
         require(kycSBT.registrationFee() == 0.01 ether, "Invalid registration fee");
         require(kycSBT.minNameLength() == 5, "Invalid min name length");
         require(keccak256(bytes(kycSBT.suffix())) == keccak256(bytes(".hsk")), "Invalid suffix");
+        require(kycSBT.validityPeriod() == 365 days, "Invalid validity period");
 
         // Step 2: Verify ENS integration
         console.log("\nENS Integration:");
@@ -64,19 +66,12 @@ contract VerifyScript is Script {
         require(ens.owner(hskNode) == address(kycSBT), "KycSBT not owner of .hsk");
         require(ens.resolver(hskNode) == address(resolver), "Resolver not set for .hsk");
 
-        // Step 4: Verify admin settings
-        console.log("\nAdmin Settings:");
-        console.log("Admin Count:", kycSBT.adminCount());
-        console.log("Is Admin:", kycSBT.isAdmin(admin));
-        require(kycSBT.isAdmin(admin), "Admin not set correctly");
-        require(kycSBT.adminCount() > 0, "No admins set");
-
-        // Step 5: Verify resolver ownership
+        // Step 4: Verify resolver ownership
         console.log("\nResolver Ownership:");
         console.log("Resolver Owner:", resolver.owner());
         require(resolver.owner() == address(kycSBT), "KycSBT not owner of resolver");
 
-        // Step 6: Verify contract state
+        // Step 5: Verify contract state
         console.log("\nContract State:");
         console.log("Paused:", kycSBT.paused());
         require(!kycSBT.paused(), "Contract should not be paused initially");
