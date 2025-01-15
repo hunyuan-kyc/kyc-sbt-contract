@@ -1,32 +1,6 @@
 [
   {
     "type": "function",
-    "name": "addAdmin",
-    "inputs": [
-      {
-        "name": "newAdmin",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "adminCount",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "approve",
     "inputs": [
       {
@@ -38,24 +12,6 @@
         "name": "tokenId",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "approve",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "level",
-        "type": "uint8",
-        "internalType": "enum IKycSBT.KycLevel"
       }
     ],
     "outputs": [],
@@ -147,29 +103,44 @@
   },
   {
     "type": "function",
-    "name": "initialize",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "isAdmin",
+    "name": "getKycInfo",
     "inputs": [
       {
-        "name": "",
+        "name": "account",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "name": "ensName",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "level",
+        "type": "uint8",
+        "internalType": "enum IKycSBT.KycLevel"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum IKycSBT.KycStatus"
+      },
+      {
+        "name": "createTime",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "initialize",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -246,19 +217,9 @@
         "internalType": "enum IKycSBT.KycStatus"
       },
       {
-        "name": "expirationTime",
+        "name": "createTime",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "ensNode",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "isWhitelisted",
-        "type": "bool",
-        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -349,37 +310,6 @@
   },
   {
     "type": "function",
-    "name": "reject",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "removeAdmin",
-    "inputs": [
-      {
-        "name": "admin",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "renounceOwnership",
     "inputs": [],
     "outputs": [],
@@ -388,19 +318,6 @@
   {
     "type": "function",
     "name": "requestKyc",
-    "inputs": [
-      {
-        "name": "ensName",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "payable"
-  },
-  {
-    "type": "function",
-    "name": "requestKycAndApprove",
     "inputs": [
       {
         "name": "ensName",
@@ -423,6 +340,19 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "restoreKyc",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -558,6 +488,19 @@
         "name": "newSuffix",
         "type": "string",
         "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setValidityPeriod",
+    "inputs": [
+      {
+        "name": "newPeriod",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -792,25 +735,6 @@
   },
   {
     "type": "event",
-    "name": "KycRejected",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "KycRequested",
     "inputs": [
       {
@@ -824,6 +748,19 @@
         "type": "string",
         "indexed": false,
         "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "KycRestored",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -899,6 +836,19 @@
         "name": "tokenId",
         "type": "uint256",
         "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ValidityPeriodUpdated",
+    "inputs": [
+      {
+        "name": "newPeriod",
+        "type": "uint256",
+        "indexed": false,
         "internalType": "uint256"
       }
     ],
