@@ -24,6 +24,8 @@ contract VerifyScript is Script {
         address kycSBTAddress = abi.decode(vm.parseJson(json, ".kycSBT"), (address));
         bytes32 hskNode = abi.decode(vm.parseJson(json, ".hskNode"), (bytes32));
         uint256 validityPeriod = abi.decode(vm.parseJson(json, ".validityPeriod"), (uint256));
+        uint256 registrationFee = abi.decode(vm.parseJson(json, ".registrationFee"), (uint256));
+        uint256 ensFee = abi.decode(vm.parseJson(json, ".ensFee"), (uint256));
 
         console.log("\n=== Loading Configuration ===");
         console.log("Config file:", path);
@@ -33,6 +35,8 @@ contract VerifyScript is Script {
         console.log("KYC SBT:", kycSBTAddress);
         console.log("HSK Node:", vm.toString(hskNode));
         console.log("Validity Period:", validityPeriod);
+        console.log("Registration Fee:", registrationFee);
+        console.log("ENS Fee:", ensFee);
 
         // Load contract instances
         KycSBT kycSBT = KycSBT(kycSBTAddress);
@@ -44,10 +48,12 @@ contract VerifyScript is Script {
         // Step 1: Verify basic settings
         console.log("\nBasic Settings:");
         console.log("Registration Fee:", kycSBT.registrationFee());
+        console.log("ENS Fee:", kycSBT.ensFee());
         console.log("Min Name Length:", kycSBT.minNameLength());
         console.log("Default Suffix:", kycSBT.suffix());
         console.log("Validity Period:", kycSBT.validityPeriod());
-        require(kycSBT.registrationFee() == 0.01 ether, "Invalid registration fee");
+        require(kycSBT.registrationFee() == 2 ether, "Invalid registration fee");
+        require(kycSBT.ensFee() == 2 ether, "Invalid ENS fee");
         require(kycSBT.minNameLength() == 5, "Invalid min name length");
         require(keccak256(bytes(kycSBT.suffix())) == keccak256(bytes(".hsk")), "Invalid suffix");
         require(kycSBT.validityPeriod() == 365 days, "Invalid validity period");

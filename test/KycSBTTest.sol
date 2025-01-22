@@ -9,8 +9,7 @@ import "@ens-contracts/contracts/registry/ENS.sol";
 import "@ens-contracts/contracts/registry/ENSRegistry.sol";
 import "../src/interfaces/IKycSBT.sol";
 
-// Base test contract for KYC SBT tests
-contract KycSBTTest is Test {
+abstract contract KycSBTTest is Test {
     KycSBT public kycSBT;
     KycResolver public resolver;
     ENS public ens;
@@ -25,9 +24,12 @@ contract KycSBTTest is Test {
     event KycStatusChanged(bytes32 indexed node, bool isValid, uint8 level);
     event KycRevoked(address indexed user);
     event KycRestored(address indexed user);
+    event AddressApproved(address indexed user, IKycSBT.KycLevel level);
     event ValidityPeriodUpdated(uint256 newPeriod);
+    event RegistrationFeeUpdated(uint256 newFee);
+    event EnsFeeUpdated(uint256 newFee);
 
-    function setUp() public {
+    function setUp() public virtual {
         vm.startPrank(owner);
         
         // Deploy ENS Registry
@@ -57,5 +59,9 @@ contract KycSBTTest is Test {
         ENSRegistry(address(ens)).setSubnodeOwner(bytes32(0), keccak256("hsk"), address(kycSBT));
         
         vm.stopPrank();
+    }
+
+    function _getTotalFee() internal view returns (uint256) {
+        return kycSBT.registrationFee() + kycSBT.ensFee();
     }
 }

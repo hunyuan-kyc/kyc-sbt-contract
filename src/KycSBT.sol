@@ -34,7 +34,6 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     function initialize() public initializer {
         __ERC721_init("KYC SBT", "KYC");
         __Ownable_init(msg.sender);
-        registrationFee = 0.01 ether;
         minNameLength = 5;
         validityPeriod = 365 days;  // Default validity period
     }
@@ -60,32 +59,90 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         require(_hasSuffix(ensName, suffix), "KycSBT.requestKyc: Invalid suffix");
         
         uint256 labelLength = nameBytes.length - suffixBytes.length;
-        require(labelLength >= minNameLength, "KycSBT.requestKyc: Name too short");
-        require(msg.value >= registrationFee, "KycSBT.requestKyc: Insufficient fee");
+        bool needsApproval = labelLength < minNameLength;
+        uint256 totalFee = registrationFee + ensFee;
+        require(msg.value >= totalFee, "KycSBT.requestKyc: Insufficient fee");
         require(ensNameToAddress[ensName] == address(0), "KycSBT.requestKyc: Name already registered");
         require(kycInfos[msg.sender].status == KycStatus.NONE, "KycSBT.requestKyc: KYC already exists");
+
+        // Process refund if excess fee was sent
+        if (msg.value > totalFee) {
+            uint256 refundAmount = msg.value - totalFee;
+            (bool success, ) = msg.sender.call{value: refundAmount}("");
+            require(success, "KycSBT.requestKyc: Refund failed");
+        }
 
         bytes32 node = keccak256(bytes(ensName));
         
         KycInfo storage info = kycInfos[msg.sender];
         info.ensName = ensName;
         info.level = KycLevel.BASIC;
-        info.status = KycStatus.APPROVED;
+        info.status = needsApproval ? KycStatus.PENDING : KycStatus.APPROVED;
         info.createTime = block.timestamp;
 
         ensNameToAddress[ensName] = msg.sender;
-        resolver.setAddr(node, msg.sender);
         
+        if (!needsApproval) {
+            resolver.setAddr(node, msg.sender);
+            resolver.setKycStatus(
+                node,
+                true,
+                uint8(KycLevel.BASIC),
+                block.timestamp + validityPeriod
+            );
+        } else {
+            pendingApprovals[node] = true;
+        }
+
+        emit KycRequested(msg.sender, ensName);
+        if (!needsApproval) {
+            emit KycStatusUpdated(msg.sender, KycStatus.APPROVED);
+            emit AddressApproved(msg.sender, KycLevel.BASIC);
+        }
+    }
+
+    /**
+     * @dev Approves a pending KYC request
+     * @param user Address of the user to approve
+     */
+    function approveKyc(address user) external onlyOwner {
+        KycInfo storage info = kycInfos[user];
+        require(info.status == KycStatus.PENDING, "KycSBT: Not pending approval");
+
+        bytes32 node = keccak256(bytes(info.ensName));
+        require(pendingApprovals[node], "KycSBT: No pending approval");
+
+        info.status = KycStatus.APPROVED;
+        pendingApprovals[node] = false;
+
+        resolver.setAddr(node, user);
         resolver.setKycStatus(
             node,
             true,
-            uint8(KycLevel.BASIC),
-            block.timestamp + validityPeriod  // Use configurable period
+            uint8(info.level),
+            block.timestamp + validityPeriod
         );
 
-        emit KycRequested(msg.sender, ensName);
-        emit KycStatusUpdated(msg.sender, KycStatus.APPROVED);
-        emit AddressApproved(msg.sender, KycLevel.BASIC);
+        emit KycStatusUpdated(user, KycStatus.APPROVED);
+        emit AddressApproved(user, info.level);
+    }
+
+    /**
+     * @dev Sets the ENS registration fee
+     * @param newFee New fee amount in wei
+     */
+    function setRegistrationFee(uint256 newFee) external onlyOwner {
+        registrationFee = newFee;
+        emit RegistrationFeeUpdated(newFee);
+    }
+
+    /**
+     * @dev Sets the ENS registration fee
+     * @param newFee New fee amount in wei
+     */
+    function setEnsFee(uint256 newFee) external onlyOwner {
+        ensFee = newFee;
+        emit EnsFeeUpdated(newFee);
     }
 
     /**
@@ -184,14 +241,6 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     function setENSAndResolver(address _ens, address _resolver) external onlyOwner {
         ens = ENS(_ens);
         resolver = IKycResolver(_resolver);
-    }
-
-    /**
-     * @dev Sets the registration fee
-     * @param newFee New fee amount in wei
-     */
-    function setRegistrationFee(uint256 newFee) external onlyOwner {
-        registrationFee = newFee;
     }
 
     /**

@@ -66,6 +66,8 @@ contract DeployScript is Script {
         json = vm.serializeAddress("config", "kycSBT", address(kycSBT));
         json = vm.serializeBytes32("config", "hskNode", hskNode);
         json = vm.serializeUint("config", "validityPeriod", kycSBT.validityPeriod());
+        json = vm.serializeUint("config", "registrationFee", kycSBT.registrationFee());
+        json = vm.serializeUint("config", "ensFee", kycSBT.ensFee());
 
         // Save to file
         string memory path = "output/config.json";

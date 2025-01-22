@@ -14,11 +14,12 @@ abstract contract KycSBTStorage {
     }
     
     // Configuration
-    uint256 public registrationFee;  // Fee required for KYC registration
-    uint256 public minNameLength;    // Minimum length required for ENS names
+    uint256 public registrationFee = 2 ether;  // Fee required for KYC registration (2 HSK)
+    uint256 public minNameLength = 5;    // Minimum length required for ENS names
     uint256 public validityPeriod;   // Period for which KYC is valid (in seconds)
     bool public paused;              // Emergency pause flag
     string public suffix = ".hsk";   // Default ENS suffix
+    uint256 public ensFee = 2 ether; // ENS registration fee (2 HSK)
 
     // ENS Configuration
     ENS public ens;                  // ENS Registry contract
@@ -27,6 +28,7 @@ abstract contract KycSBTStorage {
     // KYC mappings
     mapping(address => KycInfo) public kycInfos;         // Maps address to KYC info
     mapping(string => address) public ensNameToAddress;  // Maps ENS name to address
+    mapping(bytes32 => bool) public pendingApprovals;   // Maps node to pending approval status
     
     // Reserved storage space for future upgrades
     uint256[100] private __gap;

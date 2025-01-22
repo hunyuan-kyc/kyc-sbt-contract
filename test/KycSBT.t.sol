@@ -1,95 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "forge-std/Test.sol";
-import "forge-std/console.sol";
-import "../src/KycSBT.sol";
-import "../src/KycResolver.sol";
-import "@ens-contracts/contracts/registry/ENS.sol";
-import "@ens-contracts/contracts/registry/ENSRegistry.sol";
-import "../src/interfaces/IKycSBT.sol";
+import "./KycSBTTest.sol";
 
-contract KycSBTTest is Test {
-    KycSBT public kycSBT;
-    KycResolver public resolver;
-    ENS public ens;
-
-    address public owner = address(1);
-    address public user = address(3);
-
-    event KycRequested(address indexed user, string ensName);
-    event KycStatusUpdated(address indexed user, IKycSBT.KycStatus status);
-    event KycLevelUpdated(address indexed user, IKycSBT.KycLevel oldLevel, IKycSBT.KycLevel newLevel);
-    event AddrChanged(bytes32 indexed node, address addr);
-    event KycStatusChanged(bytes32 indexed node, bool isValid, uint8 level);
-    event KycRevoked(address indexed user);
-    event KycRestored(address indexed user);
-    event ValidityPeriodUpdated(uint256 newPeriod);
-
-    function setUp() public {
-        vm.startPrank(owner);
-        
-        // Deploy ENS Registry
-        ens = ENS(address(new ENSRegistry()));
-        
-        // Deploy resolver
-        resolver = new KycResolver(ens);
-        
-        // Deploy and initialize KYC SBT
-        kycSBT = new KycSBT();
-        kycSBT.initialize();
-        
-        // Configure ENS and resolver
-        kycSBT.setENSAndResolver(address(ens), address(resolver));
-        
-        // Set up ENS domain
-        bytes32 hskNode = keccak256(abi.encodePacked(bytes32(0), keccak256("hsk")));
-        ENSRegistry(address(ens)).setSubnodeOwner(bytes32(0), keccak256("hsk"), owner);
-        
-        // Set resolver
-        ens.setResolver(hskNode, address(resolver));
-        
-        // Authorize KYC SBT contract to operate resolver
-        resolver.transferOwnership(address(kycSBT));
-        
-        // Transfer .hsk domain ownership to KYC SBT
-        ENSRegistry(address(ens)).setSubnodeOwner(bytes32(0), keccak256("hsk"), address(kycSBT));
-        
-        vm.stopPrank();
-    }
-
+contract KycSBTMainTest is KycSBTTest {  // 改名并继承自 KycSBTTest
     function testInitialize() public {
-        assertEq(kycSBT.owner(), owner, "Owner should be set correctly");
-        assertEq(kycSBT.registrationFee(), 0.01 ether, "Registration fee should be 0.01 ether");
+        assertEq(kycSBT.registrationFee(), 2 ether, "Registration fee should be 2 HSK");
+        assertEq(kycSBT.ensFee(), 2 ether, "ENS fee should be 2 HSK");
         assertEq(kycSBT.minNameLength(), 5, "Min name length should be 5");
         assertEq(kycSBT.validityPeriod(), 365 days, "Validity period should be 365 days");
     }
 
     function testRequestKyc() public {
-        string memory label = "alice";
-        string memory ensName = string(abi.encodePacked(label, ".hsk"));
-        uint256 fee = kycSBT.registrationFee();
+        string memory ensName = "alice1.hsk";
+        uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee);
+        vm.deal(user, totalFee);
 
         vm.expectEmit(true, true, true, true);
         emit KycRequested(user, ensName);
         
-        kycSBT.requestKyc{value: fee}(ensName);
+        kycSBT.requestKyc{value: totalFee}(ensName);
 
-        // Verify state
-        (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
-            IKycSBT.KycStatus kycStatus,
-            uint256 createTime
-        ) = kycSBT.getKycInfo(user);
-
-        assertEq(storedName, ensName, "ENS name mismatch");
-        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
-        assertEq(uint8(kycLevel), uint8(IKycSBT.KycLevel.BASIC), "Level should be BASIC");
-        assertGt(createTime, 0, "Create time should be set");
+        (bool isHuman, uint8 level) = kycSBT.isHuman(user);
+        assertTrue(isHuman, "Should be verified as human");
+        assertEq(level, uint8(IKycSBT.KycLevel.BASIC), "Should have BASIC level");
 
         vm.stopPrank();
     }
@@ -97,41 +33,21 @@ contract KycSBTTest is Test {
     function testRevokeAndRestore() public {
         // First request KYC
         string memory ensName = "alice1.hsk";
-        uint256 fee = kycSBT.registrationFee();
+        uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee);
-        kycSBT.requestKyc{value: fee}(ensName);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
 
         // Test revocation
-        vm.expectEmit(true, true, true, true);
-        emit KycRevoked(user);
         kycSBT.revokeKyc(user);
-
-        // Verify revoked state
-        (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
-            IKycSBT.KycStatus kycStatus,
-            uint256 createTime
-        ) = kycSBT.getKycInfo(user);
-
-        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
+        (bool isHuman, ) = kycSBT.isHuman(user);
+        assertFalse(isHuman, "Should not be verified after revocation");
 
         // Test restoration
-        vm.expectEmit(true, true, true, true);
-        emit KycRestored(user);
         kycSBT.restoreKyc(user);
-
-        // Verify restored state
-        (
-            storedName,
-            kycLevel,
-            kycStatus,
-            createTime
-        ) = kycSBT.getKycInfo(user);
-
-        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
+        (isHuman, ) = kycSBT.isHuman(user);
+        assertTrue(isHuman, "Should be verified after restoration");
 
         vm.stopPrank();
     }

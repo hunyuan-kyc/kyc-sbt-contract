@@ -8,14 +8,52 @@ contract KycSBTValidationTest is KycSBTTest {
     function testRequestKycNameTooShort() public {
         string memory label = "abcd";  // 4 characters
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
-        uint256 fee = kycSBT.registrationFee();
+        uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee);
+        vm.deal(user, totalFee);
         
-        vm.expectRevert("KycSBT.requestKyc: Name too short");
-        kycSBT.requestKyc{value: fee}(ensName);
+        kycSBT.requestKyc{value: totalFee}(ensName);
+        
+        // Verify PENDING status
+        (
+            string memory storedName,
+            IKycSBT.KycLevel level,
+            IKycSBT.KycStatus status,
+            uint256 createTime
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(storedName, ensName, "ENS name mismatch");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.PENDING), "Status should be PENDING");
+        assertEq(uint8(level), uint8(IKycSBT.KycLevel.BASIC), "Level should be BASIC");
+        assertGt(createTime, 0, "Create time should be set");
+        
         vm.stopPrank();
+    }
+
+    function testShortNameApproval() public {
+        string memory ensName = "abcd.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        // Request KYC
+        vm.startPrank(user);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
+        vm.stopPrank();
+
+        // Owner approves
+        vm.startPrank(owner);
+        kycSBT.approveKyc(user);
+        vm.stopPrank();
+
+        // Verify approved status
+        (
+            ,
+            ,
+            IKycSBT.KycStatus status,
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
     }
 
     function testInvalidSuffix() public {
@@ -85,11 +123,11 @@ contract KycSBTValidationTest is KycSBTTest {
         // Request KYC with new suffix
         string memory label = "alice1";
         string memory ensName = string(abi.encodePacked(label, newSuffix));
-        uint256 fee = kycSBT.registrationFee();
+        uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee);
-        kycSBT.requestKyc{value: fee}(ensName);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
 
         // Verify state
         (
@@ -107,15 +145,15 @@ contract KycSBTValidationTest is KycSBTTest {
 
     function testDuplicateRequest() public {
         string memory ensName = "alice1.hsk";
-        uint256 fee = kycSBT.registrationFee();
+        uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee * 2);
+        vm.deal(user, totalFee * 2);
         
-        kycSBT.requestKyc{value: fee}(ensName);
+        kycSBT.requestKyc{value: totalFee}(ensName);
         
         vm.expectRevert("KycSBT.requestKyc: Name already registered");
-        kycSBT.requestKyc{value: fee}(ensName);
+        kycSBT.requestKyc{value: totalFee}(ensName);
         vm.stopPrank();
     }
 } 

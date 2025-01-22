@@ -4,18 +4,18 @@ pragma solidity ^0.8.19;
 import "./KycSBTTest.sol";
 
 contract KycSBTCoreTest is KycSBTTest {
-    function testRequestKyc() public {
+    function testRequestKycNormalName() public {
         string memory label = "alice1";
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
-        uint256 fee = kycSBT.registrationFee();
+        uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee);
+        vm.deal(user, totalFee);
 
         vm.expectEmit(true, true, true, true);
         emit KycRequested(user, ensName);
         
-        kycSBT.requestKyc{value: fee}(ensName);
+        kycSBT.requestKyc{value: totalFee}(ensName);
 
         // Verify state
         (
@@ -33,19 +33,98 @@ contract KycSBTCoreTest is KycSBTTest {
         vm.stopPrank();
     }
 
+    function testRequestKycShortName() public {
+        string memory label = "abc";  // 3 characters
+        string memory ensName = string(abi.encodePacked(label, ".hsk"));
+        uint256 totalFee = _getTotalFee();
+
+        vm.startPrank(user);
+        vm.deal(user, totalFee);
+
+        vm.expectEmit(true, true, true, true);
+        emit KycRequested(user, ensName);
+        
+        kycSBT.requestKyc{value: totalFee}(ensName);
+
+        // Verify state
+        (
+            string memory storedName,
+            IKycSBT.KycLevel kycLevel,
+            IKycSBT.KycStatus kycStatus,
+            uint256 createTime
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(storedName, ensName, "ENS name mismatch");
+        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.PENDING), "Status should be PENDING");
+        assertEq(uint8(kycLevel), uint8(IKycSBT.KycLevel.BASIC), "Level should be BASIC");
+        assertGt(createTime, 0, "Create time should be set");
+
+        vm.stopPrank();
+    }
+
+    function testApproveKyc() public {
+        // First request KYC with short name
+        string memory ensName = "abc.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        vm.startPrank(user);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
+        vm.stopPrank();
+
+        // Test owner approval
+        vm.startPrank(owner);
+        
+        bytes32 node = keccak256(bytes(ensName));
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycStatusChanged(node, true, uint8(IKycSBT.KycLevel.BASIC));
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycStatusUpdated(user, IKycSBT.KycStatus.APPROVED);
+        
+        vm.expectEmit(true, true, true, true);
+        emit AddressApproved(user, IKycSBT.KycLevel.BASIC);
+        
+        kycSBT.approveKyc(user);
+
+        // Verify state
+        (
+            string memory storedName,
+            IKycSBT.KycLevel kycLevel,
+            IKycSBT.KycStatus kycStatus,
+            uint256 createTime
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
+        vm.stopPrank();
+    }
+
+    function testApproveKycNotOwner() public {
+        string memory ensName = "abc.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        vm.startPrank(user);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
+        
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
+        kycSBT.approveKyc(user);
+        vm.stopPrank();
+    }
+
     function testRevokeKyc() public {
         // First request KYC
         string memory ensName = "alice1.hsk";
-        uint256 fee = kycSBT.registrationFee();
+        uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee);
-        kycSBT.requestKyc{value: fee}(ensName);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
 
         // Test self-revocation
         bytes32 node = keccak256(bytes(ensName));
         
-        // Expect events in correct order
         vm.expectEmit(true, true, true, true);
         emit KycStatusChanged(node, false, uint8(IKycSBT.KycLevel.BASIC));
         
@@ -76,27 +155,25 @@ contract KycSBTCoreTest is KycSBTTest {
     }
 
     function testRestoreKyc() public {
-        // Setup: Request and revoke KYC
+        // First request KYC
         string memory ensName = "alice1.hsk";
-        uint256 fee = kycSBT.registrationFee();
+        uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee);
-        kycSBT.requestKyc{value: fee}(ensName);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
         kycSBT.revokeKyc(user);
 
-        // Test self-restoration (temporary for testing)
+        // Test restoration
         vm.expectEmit(true, true, true, true);
         emit KycRestored(user);
         
         kycSBT.restoreKyc(user);
 
-        // Verify state
         (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
+            ,
+            ,
             IKycSBT.KycStatus kycStatus,
-            uint256 createTime
         ) = kycSBT.getKycInfo(user);
 
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
@@ -133,18 +210,17 @@ contract KycSBTCoreTest is KycSBTTest {
     function testOwnerRevokeKyc() public {
         // First request KYC
         string memory ensName = "alice2.hsk";
-        uint256 fee = kycSBT.registrationFee();
+        uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
-        vm.deal(user, fee);
-        kycSBT.requestKyc{value: fee}(ensName);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
         vm.stopPrank();
 
         // Test owner revocation
         vm.startPrank(owner);
         bytes32 node = keccak256(bytes(ensName));
         
-        // Expect events in correct order
         vm.expectEmit(true, true, true, true);
         emit KycStatusChanged(node, false, uint8(IKycSBT.KycLevel.BASIC));
         
@@ -156,12 +232,10 @@ contract KycSBTCoreTest is KycSBTTest {
         
         kycSBT.revokeKyc(user);
 
-        // Verify state
         (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
+            ,
+            ,
             IKycSBT.KycStatus kycStatus,
-            uint256 createTime
         ) = kycSBT.getKycInfo(user);
 
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
