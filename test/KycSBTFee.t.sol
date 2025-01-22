@@ -181,4 +181,48 @@ contract KycSBTFeeTest is KycSBTTest {
         
         vm.stopPrank();
     }
+
+    function testGetTotalFee() public {
+        // Get initial fees
+        uint256 regFee = kycSBT.registrationFee();
+        uint256 ensFee = kycSBT.ensFee();
+        
+        // Verify total fee calculation
+        assertEq(
+            kycSBT.getTotalFee(),
+            regFee + ensFee,
+            "Total fee calculation incorrect"
+        );
+    }
+
+    function testGetTotalFeeAfterUpdate() public {
+        uint256 newRegFee = 3 ether;
+        uint256 newEnsFee = 4 ether;
+        
+        vm.startPrank(owner);
+        
+        // Update fees
+        kycSBT.setRegistrationFee(newRegFee);
+        kycSBT.setEnsFee(newEnsFee);
+        
+        // Verify total fee updates correctly
+        assertEq(
+            kycSBT.getTotalFee(),
+            newRegFee + newEnsFee,
+            "Total fee not updated correctly after fee changes"
+        );
+        
+        vm.stopPrank();
+    }
+
+    function testGetTotalFeeConsistency() public {
+        // Get total fee through different methods
+        uint256 directSum = kycSBT.registrationFee() + kycSBT.ensFee();
+        uint256 totalFee = kycSBT.getTotalFee();
+        uint256 helperTotal = _getTotalFee();
+        
+        // Verify all methods return the same value
+        assertEq(directSum, totalFee, "Direct sum differs from getTotalFee()");
+        assertEq(totalFee, helperTotal, "getTotalFee() differs from helper method");
+    }
 } 

@@ -36,20 +36,20 @@
   - Registration fee = 2 HSK
   - ENS fee = 2 HSK
 
-- `testSetRegistrationFee`: Tests registration fee updates
-  - Verifies owner can update fee
-  - Validates event emission
-  - Checks fee update
+### Total Fee Tests
+- `testGetTotalFee`: Tests total fee calculation
+  - Verifies correct sum of registration and ENS fees
+  - Validates initial total fee amount
 
-- `testSetEnsFee`: Tests ENS fee updates
-  - Verifies owner can update fee
-  - Validates event emission
-  - Checks fee update
+- `testGetTotalFeeAfterUpdate`: Tests total fee updates
+  - Updates individual fees
+  - Verifies total fee reflects changes
+  - Validates calculation after fee updates
 
-- `testSetBothFees`: Tests updating both fees
-  - Verifies independent fee updates
-  - Validates total fee calculation
-  - Checks event emissions
+- `testGetTotalFeeConsistency`: Tests fee calculation consistency
+  - Compares direct sum with getTotalFee()
+  - Validates against helper method
+  - Ensures all calculation methods match
 
 ### Fee Processing Tests
 - `testExcessFeeRefund`: Tests refund of excess fees

@@ -128,19 +128,21 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     }
 
     /**
-     * @dev Sets the ENS registration fee
+     * @dev Sets the registration fee
      * @param newFee New fee amount in wei
      */
     function setRegistrationFee(uint256 newFee) external onlyOwner {
+        require(newFee > 0, "KycSBT: Fee cannot be zero");
         registrationFee = newFee;
         emit RegistrationFeeUpdated(newFee);
     }
 
     /**
-     * @dev Sets the ENS registration fee
+     * @dev Sets the ENS fee
      * @param newFee New fee amount in wei
      */
     function setEnsFee(uint256 newFee) external onlyOwner {
+        require(newFee > 0, "KycSBT: Fee cannot be zero");
         ensFee = newFee;
         emit EnsFeeUpdated(newFee);
     }
@@ -305,5 +307,13 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         require(newPeriod > 0, "KycSBT: Invalid period");
         validityPeriod = newPeriod;
         emit ValidityPeriodUpdated(newPeriod);
+    }
+
+    /**
+     * @notice Get the total fee required for KYC registration
+     * @return The total fee (registration fee + ENS fee) in wei
+     */
+    function getTotalFee() external view returns (uint256) {
+        return registrationFee + ensFee;
     }
 } 

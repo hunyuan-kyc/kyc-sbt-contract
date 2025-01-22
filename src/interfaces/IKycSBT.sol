@@ -33,4 +33,5 @@ interface IKycSBT {
     function approveKyc(address user) external;
     function setRegistrationFee(uint256 newFee) external;
     function setEnsFee(uint256 newFee) external;
+    function getTotalFee() external view returns (uint256);
 }
