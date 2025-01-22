@@ -70,17 +70,12 @@
   - Verifies access control
   - Validates error message
 
-## Validation Tests (KycSBTValidation.t.sol)
+## ENS Name Management Tests (KycSBTEns.t.sol)
 
-### Name Validation Tests
+### Name Validation and Approval Tests
 - `testRequestKycNameTooShort`: Tests short name handling
-  - Verifies PENDING status for short names
-  - Validates owner approval requirement
-
-- `testShortNameApproval`: Tests approval process for short names
-  - Verifies owner approval workflow
-  - Validates status changes
-  - Checks event emissions
+  - Verifies short names are rejected without approval
+  - Validates error message
 
 ### Other Validation Tests
 - `testInvalidSuffix`: Tests invalid ENS suffix handling
@@ -105,6 +100,45 @@
   - Verifies event signature
   - Validates event data
   - Checks event parameters
+
+## ENS Name Management Tests
+
+### Short Name Approval Tests
+- `testApproveShortName`: Tests short name approval process
+  - Verifies owner can approve short names for specific users
+  - Validates event emission
+  - Checks approval status
+
+- `testRequestShortNameWithoutApproval`: Tests unauthorized short name usage
+  - Verifies unapproved short names are rejected
+  - Validates error message
+
+- `testRequestApprovedShortName`: Tests approved short name registration
+  - Verifies approved short names can be registered by approved user
+  - Validates KYC status after registration
+  - Checks event emissions
+
+### Access Control Tests
+- `testApproveShortNameNotOwner`: Tests approval restrictions
+  - Verifies only owner can approve short names
+  - Validates error message
+
+- `testApproveShortNameToAnotherUser`: Tests user-specific approvals
+  - Verifies approvals are user-specific
+  - Validates other users cannot use approved names
+
+### Input Validation Tests
+- `testApproveEmptyName`: Tests empty name validation
+  - Verifies empty names are rejected
+  - Validates error message
+
+- `testApproveToZeroAddress`: Tests zero address validation
+  - Verifies zero address approvals are rejected
+  - Validates error message
+
+- `testApproveAlreadyRegisteredName`: Tests duplicate registration prevention
+  - Verifies registered names cannot be approved again
+  - Validates error message
 
 ## Notes
 - All tests use the `_getTotalFee()` helper function to calculate total required fees

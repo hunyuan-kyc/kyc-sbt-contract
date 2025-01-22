@@ -33,86 +33,6 @@ contract KycSBTCoreTest is KycSBTTest {
         vm.stopPrank();
     }
 
-    function testRequestKycShortName() public {
-        string memory label = "abc";  // 3 characters
-        string memory ensName = string(abi.encodePacked(label, ".hsk"));
-        uint256 totalFee = _getTotalFee();
-
-        vm.startPrank(user);
-        vm.deal(user, totalFee);
-
-        vm.expectEmit(true, true, true, true);
-        emit KycRequested(user, ensName);
-        
-        kycSBT.requestKyc{value: totalFee}(ensName);
-
-        // Verify state
-        (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
-            IKycSBT.KycStatus kycStatus,
-            uint256 createTime
-        ) = kycSBT.getKycInfo(user);
-
-        assertEq(storedName, ensName, "ENS name mismatch");
-        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.PENDING), "Status should be PENDING");
-        assertEq(uint8(kycLevel), uint8(IKycSBT.KycLevel.BASIC), "Level should be BASIC");
-        assertGt(createTime, 0, "Create time should be set");
-
-        vm.stopPrank();
-    }
-
-    function testApproveKyc() public {
-        // First request KYC with short name
-        string memory ensName = "abc.hsk";
-        uint256 totalFee = _getTotalFee();
-
-        vm.startPrank(user);
-        vm.deal(user, totalFee);
-        kycSBT.requestKyc{value: totalFee}(ensName);
-        vm.stopPrank();
-
-        // Test owner approval
-        vm.startPrank(owner);
-        
-        bytes32 node = keccak256(bytes(ensName));
-        
-        vm.expectEmit(true, true, true, true);
-        emit KycStatusChanged(node, true, uint8(IKycSBT.KycLevel.BASIC));
-        
-        vm.expectEmit(true, true, true, true);
-        emit KycStatusUpdated(user, IKycSBT.KycStatus.APPROVED);
-        
-        vm.expectEmit(true, true, true, true);
-        emit AddressApproved(user, IKycSBT.KycLevel.BASIC);
-        
-        kycSBT.approveKyc(user);
-
-        // Verify state
-        (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
-            IKycSBT.KycStatus kycStatus,
-            uint256 createTime
-        ) = kycSBT.getKycInfo(user);
-
-        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
-        vm.stopPrank();
-    }
-
-    function testApproveKycNotOwner() public {
-        string memory ensName = "abc.hsk";
-        uint256 totalFee = _getTotalFee();
-
-        vm.startPrank(user);
-        vm.deal(user, totalFee);
-        kycSBT.requestKyc{value: totalFee}(ensName);
-        
-        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
-        kycSBT.approveKyc(user);
-        vm.stopPrank();
-    }
-
     function testRevokeKyc() public {
         // First request KYC
         string memory ensName = "alice1.hsk";
@@ -126,9 +46,6 @@ contract KycSBTCoreTest is KycSBTTest {
         bytes32 node = keccak256(bytes(ensName));
         
         vm.expectEmit(true, true, true, true);
-        emit KycStatusChanged(node, false, uint8(IKycSBT.KycLevel.BASIC));
-        
-        vm.expectEmit(true, true, true, true);
         emit KycStatusUpdated(user, IKycSBT.KycStatus.REVOKED);
         
         vm.expectEmit(true, true, true, true);
@@ -138,10 +55,9 @@ contract KycSBTCoreTest is KycSBTTest {
 
         // Verify state
         (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
+            ,
+            ,
             IKycSBT.KycStatus kycStatus,
-            uint256 createTime
         ) = kycSBT.getKycInfo(user);
 
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
@@ -180,6 +96,37 @@ contract KycSBTCoreTest is KycSBTTest {
         vm.stopPrank();
     }
 
+    function testOwnerRevokeKyc() public {
+        // First request KYC
+        string memory ensName = "alice2.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        vm.startPrank(user);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
+        vm.stopPrank();
+
+        // Test owner revocation
+        vm.startPrank(owner);
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycStatusUpdated(user, IKycSBT.KycStatus.REVOKED);
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycRevoked(user);
+        
+        kycSBT.revokeKyc(user);
+
+        (
+            ,
+            ,
+            IKycSBT.KycStatus kycStatus,
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
+        vm.stopPrank();
+    }
+
     function testSetValidityPeriod() public {
         uint256 newPeriod = 180 days;
         
@@ -203,42 +150,6 @@ contract KycSBTCoreTest is KycSBTTest {
         vm.startPrank(owner);
         vm.expectRevert("KycSBT: Invalid period");
         kycSBT.setValidityPeriod(0);
-        vm.stopPrank();
-    }
-
-    // Add new test for owner revocation
-    function testOwnerRevokeKyc() public {
-        // First request KYC
-        string memory ensName = "alice2.hsk";
-        uint256 totalFee = _getTotalFee();
-
-        vm.startPrank(user);
-        vm.deal(user, totalFee);
-        kycSBT.requestKyc{value: totalFee}(ensName);
-        vm.stopPrank();
-
-        // Test owner revocation
-        vm.startPrank(owner);
-        bytes32 node = keccak256(bytes(ensName));
-        
-        vm.expectEmit(true, true, true, true);
-        emit KycStatusChanged(node, false, uint8(IKycSBT.KycLevel.BASIC));
-        
-        vm.expectEmit(true, true, true, true);
-        emit KycStatusUpdated(user, IKycSBT.KycStatus.REVOKED);
-        
-        vm.expectEmit(true, true, true, true);
-        emit KycRevoked(user);
-        
-        kycSBT.revokeKyc(user);
-
-        (
-            ,
-            ,
-            IKycSBT.KycStatus kycStatus,
-        ) = kycSBT.getKycInfo(user);
-
-        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
         vm.stopPrank();
     }
 } 

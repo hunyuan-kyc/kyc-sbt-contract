@@ -2,8 +2,11 @@
 pragma solidity ^0.8.19;
 
 interface IKycSBT {
+    // @dev KYC levels from lowest to highest
     enum KycLevel { NONE, BASIC, ADVANCED, PREMIUM, ULTIMATE }
-    enum KycStatus { NONE, PENDING, APPROVED, REVOKED }
+    
+    // @dev Only store APPROVED(1) and REVOKED(2) on-chain
+    enum KycStatus { NONE, APPROVED, REVOKED }
 
     // Events
     event KycRequested(address indexed user, string ensName);
@@ -15,6 +18,7 @@ interface IKycSBT {
     event ValidityPeriodUpdated(uint256 newPeriod);
     event RegistrationFeeUpdated(uint256 newFee);
     event EnsFeeUpdated(uint256 newFee);
+    event EnsNameApproved(address indexed user, string ensName);
 
     // Core functions
     function requestKyc(string calldata ensName) external payable;
@@ -28,9 +32,12 @@ interface IKycSBT {
         uint256 createTime
     );
 
+    // ENS name approval functions
+    function approveEnsName(address user, string calldata ensName) external;
+    function isEnsNameApproved(address user, string calldata ensName) external view returns (bool);
+
     // Configuration functions
     function setValidityPeriod(uint256 newPeriod) external;
-    function approveKyc(address user) external;
     function setRegistrationFee(uint256 newFee) external;
     function setEnsFee(uint256 newFee) external;
     function getTotalFee() external view returns (uint256);

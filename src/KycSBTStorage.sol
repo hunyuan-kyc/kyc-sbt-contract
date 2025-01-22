@@ -24,12 +24,15 @@ abstract contract KycSBTStorage {
     // ENS Configuration
     ENS public ens;                  // ENS Registry contract
     IKycResolver public resolver;    // ENS Resolver contract
-    
+
     // KYC mappings
     mapping(address => KycInfo) public kycInfos;         // Maps address to KYC info
     mapping(string => address) public ensNameToAddress;  // Maps ENS name to address
-    mapping(bytes32 => bool) public pendingApprovals;   // Maps node to pending approval status
-    
+
+    // ENS name approval mappings
+    mapping(address => string) internal approvedEnsNames;  // Maps address to approved ENS name
+    mapping(string => bool) internal isNameApproved;       // Maps ENS name to approval status
+
     // Reserved storage space for future upgrades
     uint256[100] private __gap;
 }

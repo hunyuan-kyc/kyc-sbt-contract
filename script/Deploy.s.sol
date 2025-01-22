@@ -53,6 +53,10 @@ contract DeployScript is Script {
         ensRegistry.setSubnodeOwner(rootNode, labelHash, address(kycSBT));
         console.log("HSK node ownership transferred to KycSBT");
         
+        // Set initial fees for test environment (0.01 HSK)
+        kycSBT.setRegistrationFee(0.01 ether);
+        kycSBT.setEnsFee(0.01 ether);
+
         // Step 6: Transfer resolver ownership
         resolver.transferOwnership(address(kycSBT));
         console.log("Resolver ownership transferred to KycSBT");

@@ -114,12 +114,14 @@ contract KycSBTFeeTest is KycSBTTest {
     function testInsufficientTotalFee() public {
         string memory ensName = "alice1.hsk";
         uint256 totalFee = _getTotalFee();
-        
+        uint256 insufficientFee = totalFee - 1;
+
         vm.startPrank(user);
-        vm.deal(user, totalFee - 1);
-        
-        vm.expectRevert("KycSBT.requestKyc: Insufficient fee");
-        kycSBT.requestKyc{value: totalFee - 1}(ensName);
+        vm.deal(user, insufficientFee);
+
+        vm.expectRevert("KycSBT: Insufficient fee");
+        kycSBT.requestKyc{value: insufficientFee}(ensName);
+
         vm.stopPrank();
     }
 

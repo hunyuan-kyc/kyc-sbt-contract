@@ -18,16 +18,15 @@ abstract contract KycSBTTest is Test {
     address public user = address(3);
 
     event KycRequested(address indexed user, string ensName);
-    event KycStatusUpdated(address indexed user, IKycSBT.KycStatus status);
     event KycLevelUpdated(address indexed user, IKycSBT.KycLevel oldLevel, IKycSBT.KycLevel newLevel);
-    event AddrChanged(bytes32 indexed node, address addr);
-    event KycStatusChanged(bytes32 indexed node, bool isValid, uint8 level);
+    event KycStatusUpdated(address indexed user, IKycSBT.KycStatus status);
     event KycRevoked(address indexed user);
     event KycRestored(address indexed user);
     event AddressApproved(address indexed user, IKycSBT.KycLevel level);
     event ValidityPeriodUpdated(uint256 newPeriod);
     event RegistrationFeeUpdated(uint256 newFee);
     event EnsFeeUpdated(uint256 newFee);
+    event EnsNameApproved(address indexed user, string ensName);
 
     function setUp() public virtual {
         vm.startPrank(owner);
