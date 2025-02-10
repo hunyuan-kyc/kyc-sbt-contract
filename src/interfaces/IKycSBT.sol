@@ -9,11 +9,11 @@ interface IKycSBT {
     enum KycStatus { NONE, APPROVED, REVOKED }
 
     // Events
+    event KycApprovalPending(address indexed user, uint8 level);
     event KycRequested(address indexed user, string ensName);
     event KycLevelUpdated(address indexed user, KycLevel oldLevel, KycLevel newLevel);
     event KycStatusUpdated(address indexed user, KycStatus status);
     event KycRevoked(address indexed user);
-    event KycRestored(address indexed user);
     event AddressApproved(address indexed user, KycLevel level);
     event ValidityPeriodUpdated(uint256 newPeriod);
     event RegistrationFeeUpdated(uint256 newFee);
@@ -23,7 +23,6 @@ interface IKycSBT {
     // Core functions
     function requestKyc(string calldata ensName) external payable;
     function revokeKyc(address user) external;
-    function restoreKyc(address user) external;
     function isHuman(address account) external view returns (bool, uint8);
     function getKycInfo(address account) external view returns (
         string memory ensName,

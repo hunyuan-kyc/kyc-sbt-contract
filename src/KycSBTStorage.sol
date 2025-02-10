@@ -28,6 +28,7 @@ abstract contract KycSBTStorage {
     // KYC mappings
     mapping(address => KycInfo) public kycInfos;         // Maps address to KYC info
     mapping(string => address) public ensNameToAddress;  // Maps ENS name to address
+    mapping(address => uint8) public pendingApprovals;   // Maps address to pending KYC level
 
     // ENS name approval mappings
     mapping(address => string) internal approvedEnsNames;  // Maps address to approved ENS name

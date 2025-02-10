@@ -27,6 +27,7 @@ abstract contract KycSBTTest is Test {
     event RegistrationFeeUpdated(uint256 newFee);
     event EnsFeeUpdated(uint256 newFee);
     event EnsNameApproved(address indexed user, string ensName);
+    event KycApprovalPending(address indexed user, uint8 level);
 
     function setUp() public virtual {
         vm.startPrank(owner);

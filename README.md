@@ -62,7 +62,7 @@ function isHuman(address account) external view returns (bool, uint8);
 ### Admin Functions
 ```solidity
 // Approve KYC request
-function approve(address user, KycLevel level) external;
+function approveKyc(address user, KycLevel level) external;
 
 // Revoke KYC status
 function revokeKyc(address user) external;

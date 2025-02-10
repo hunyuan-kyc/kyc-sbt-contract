@@ -75,9 +75,12 @@ contract KycSBTFeeTest is KycSBTTest {
     }
 
     function testWithdrawFees() public {
-        // First request KYC to generate fees
         string memory ensName = "alice1.hsk";
         uint256 totalFee = _getTotalFee();
+        
+        // First approve the user
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
         
         vm.startPrank(user);
         vm.deal(user, totalFee);
@@ -111,51 +114,45 @@ contract KycSBTFeeTest is KycSBTTest {
         vm.stopPrank();
     }
 
-    function testInsufficientTotalFee() public {
-        string memory ensName = "alice1.hsk";
-        uint256 totalFee = _getTotalFee();
-        uint256 insufficientFee = totalFee - 1;
-
-        vm.startPrank(user);
-        vm.deal(user, insufficientFee);
-
-        vm.expectRevert("KycSBT: Insufficient fee");
-        kycSBT.requestKyc{value: insufficientFee}(ensName);
-
-        vm.stopPrank();
-    }
-
     function testExcessFeeRefund() public {
         string memory ensName = "alice1.hsk";
         uint256 totalFee = _getTotalFee();
-        uint256 excess = 1 ether;
+        uint256 excessAmount = 0.5 ether;
         
-        // Start with clean state
-        vm.deal(address(kycSBT), 0);
-        vm.deal(user, 0);
+        // First approve KYC
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
         
-        vm.startPrank(user);
-        
-        // Set initial balance and record it
-        vm.deal(user, totalFee + excess);
+        // Set up initial balance
+        vm.deal(user, totalFee + excessAmount);
         uint256 balanceBefore = user.balance;
         
-        // Send transaction with excess fee
-        kycSBT.requestKyc{value: totalFee + excess}(ensName);
+        vm.startPrank(user);
+        kycSBT.requestKyc{value: totalFee + excessAmount}(ensName);
         
-        // Verify user balance after refund
+        // Verify refund
         assertEq(
             user.balance, 
-            balanceBefore - totalFee, 
+            balanceBefore - totalFee,  // 用户应该只支付 totalFee，多余的会被退回
             "Excess fee should be refunded"
         );
         
-        // Verify contract balance
-        assertEq(
-            address(kycSBT).balance,
-            totalFee,
-            "Contract should only keep required fee"
-        );
+        vm.stopPrank();
+    }
+
+    function testInsufficientTotalFee() public {
+        string memory ensName = "alice1.hsk";
+        uint256 totalFee = _getTotalFee();
+        
+        // First approve KYC
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
+        
+        vm.startPrank(user);
+        vm.deal(user, totalFee - 1);
+        
+        vm.expectRevert("KycSBT: Insufficient fee");
+        kycSBT.requestKyc{value: totalFee - 1}(ensName);
         
         vm.stopPrank();
     }

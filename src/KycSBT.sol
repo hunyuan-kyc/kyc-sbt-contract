@@ -74,14 +74,58 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     }
 
     /**
+     * @dev Approves or updates KYC level for a user
+     * @param user Address to approve
+     * @param level KYC level (1-4)
+     */
+    function approveKyc(address user, uint8 level) external onlyOwner {
+        require(user != address(0), "KycSBT: Zero address");
+        require(level >= 1 && level <= 4, "KycSBT: Invalid level");
+        
+        KycInfo storage info = kycInfos[user];
+        
+        if (bytes(info.ensName).length == 0) {
+            // New user - store approval for future requestKyc
+            pendingApprovals[user] = level;
+            emit KycApprovalPending(user, level);
+            return;
+        }
+
+        // Update existing user's level
+        info.level = KycLevel(level);
+        if (info.status != KycStatus.APPROVED) {
+            info.status = KycStatus.APPROVED;
+        }
+
+        bytes32 node = keccak256(bytes(info.ensName));
+        resolver.setKycStatus(
+            node,
+            true,
+            level,
+            block.timestamp + validityPeriod
+        );
+
+        emit KycStatusUpdated(user, KycStatus.APPROVED);
+        emit AddressApproved(user, KycLevel(level));
+    }
+
+    /**
      * @dev Requests KYC verification with an ENS name
      * @param ensName The ENS name to be registered
      */
     function requestKyc(string calldata ensName) external payable override whenNotPaused {
         bytes memory nameBytes = bytes(ensName);
         bytes memory suffixBytes = bytes(suffix);
+        
+        // First check name requirements
         require(nameBytes.length >= suffixBytes.length, "KycSBT: Name too short"); 
         require(_hasSuffix(ensName, suffix), "KycSBT: Invalid suffix");
+        
+        // Then check if name is already registered
+        require(ensNameToAddress[ensName] == address(0), "KycSBT: Name already registered");
+        
+        // Then check if user is approved
+        require(pendingApprovals[msg.sender] > 0, "KycSBT: Not approved");
         
         uint256 labelLength = nameBytes.length - suffixBytes.length;
         
@@ -96,7 +140,6 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         
         uint256 totalFee = registrationFee + ensFee;
         require(msg.value >= totalFee, "KycSBT: Insufficient fee");
-        require(ensNameToAddress[ensName] == address(0), "KycSBT: Name already registered");
         
         // Process refund if excess fee was sent
         if (msg.value > totalFee) {
@@ -106,26 +149,30 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         }
 
         bytes32 node = keccak256(bytes(ensName));
+        uint8 approvedLevel = pendingApprovals[msg.sender];
         
         KycInfo storage info = kycInfos[msg.sender];
         info.ensName = ensName;
-        info.level = KycLevel.BASIC;
+        info.level = KycLevel(approvedLevel);
         info.status = KycStatus.APPROVED;
         info.createTime = block.timestamp;
 
         ensNameToAddress[ensName] = msg.sender;
+        delete pendingApprovals[msg.sender];
         
         resolver.setAddr(node, msg.sender);
         resolver.setKycStatus(
             node,
             true,
-            uint8(KycLevel.BASIC),
+            approvedLevel,
             block.timestamp + validityPeriod
         );
 
+        _mint(msg.sender, uint256(uint160(msg.sender)));
+
         emit KycRequested(msg.sender, ensName);
         emit KycStatusUpdated(msg.sender, KycStatus.APPROVED);
-        emit AddressApproved(msg.sender, KycLevel.BASIC);
+        emit AddressApproved(msg.sender, KycLevel(approvedLevel));
     }
 
     /**
@@ -169,29 +216,6 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
 
         emit KycStatusUpdated(user, KycStatus.REVOKED);
         emit KycRevoked(user);
-    }
-
-    /**
-     * @dev Restores KYC status for a user
-     * @param user Address of the user to restore
-     */
-    function restoreKyc(address user) external {
-        require(msg.sender == owner() || msg.sender == user, "KycSBT: Not authorized");
-        KycInfo storage info = kycInfos[user];
-        require(info.status == KycStatus.REVOKED, "KycSBT: Not revoked");
-
-        info.status = KycStatus.APPROVED;
-        bytes32 node = keccak256(bytes(info.ensName));
-
-        resolver.setKycStatus(
-            node,
-            true,
-            uint8(info.level),
-            block.timestamp + validityPeriod
-        );
-
-        emit KycStatusUpdated(user, KycStatus.APPROVED);
-        emit KycRestored(user);
     }
 
     /**

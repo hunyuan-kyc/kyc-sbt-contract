@@ -15,6 +15,10 @@ contract KycSBTMainTest is KycSBTTest {  // 改名并继承自 KycSBTTest
         string memory ensName = "alice1.hsk";
         uint256 totalFee = _getTotalFee();
 
+        // First approve the user
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1); // Approve with BASIC level
+
         vm.startPrank(user);
         vm.deal(user, totalFee);
 
@@ -25,29 +29,7 @@ contract KycSBTMainTest is KycSBTTest {  // 改名并继承自 KycSBTTest
 
         (bool isHuman, uint8 level) = kycSBT.isHuman(user);
         assertTrue(isHuman, "Should be verified as human");
-        assertEq(level, uint8(IKycSBT.KycLevel.BASIC), "Should have BASIC level");
-
-        vm.stopPrank();
-    }
-
-    function testRevokeAndRestore() public {
-        // First request KYC
-        string memory ensName = "alice1.hsk";
-        uint256 totalFee = _getTotalFee();
-
-        vm.startPrank(user);
-        vm.deal(user, totalFee);
-        kycSBT.requestKyc{value: totalFee}(ensName);
-
-        // Test revocation
-        kycSBT.revokeKyc(user);
-        (bool isHuman, ) = kycSBT.isHuman(user);
-        assertFalse(isHuman, "Should not be verified after revocation");
-
-        // Test restoration
-        kycSBT.restoreKyc(user);
-        (isHuman, ) = kycSBT.isHuman(user);
-        assertTrue(isHuman, "Should be verified after restoration");
+        assertEq(level, 1, "Should have BASIC level");
 
         vm.stopPrank();
     }
