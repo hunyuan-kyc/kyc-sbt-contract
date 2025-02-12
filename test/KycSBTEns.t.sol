@@ -207,4 +207,150 @@ contract KycSBTEnsTest is KycSBTTest {
 
         vm.stopPrank();
     }
+
+    function testMultipleRequestKyc() public {
+        string memory firstEnsName = "alice1.hsk";
+        string memory secondEnsName = "alice2.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        // First approve KYC
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
+
+        // First request
+        vm.startPrank(user);
+        vm.deal(user, totalFee * 2);  // Double the fee for two requests
+        kycSBT.requestKyc{value: totalFee}(firstEnsName);
+
+        // Verify first registration
+        (
+            string memory storedName,
+            IKycSBT.KycLevel level,
+            IKycSBT.KycStatus status,
+            
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(storedName, firstEnsName, "First ENS name not stored correctly");
+        assertEq(uint8(level), 1, "Incorrect KYC level after first request");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Incorrect status after first request");
+
+        // Second request with different name
+        kycSBT.requestKyc{value: totalFee}(secondEnsName);
+
+        // Verify second registration
+        (
+            storedName,
+            level,
+            status,
+            
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(storedName, secondEnsName, "Second ENS name not stored correctly");
+        assertEq(uint8(level), 1, "KYC level should remain unchanged");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Status should remain approved");
+
+        // Verify old name is no longer registered
+        assertEq(kycSBT.ensNameToAddress(firstEnsName), address(0), "Old name should be unregistered");
+        assertEq(kycSBT.ensNameToAddress(secondEnsName), user, "New name should be registered");
+
+        vm.stopPrank();
+    }
+
+    function testMultipleRequestKycWithLevelChange() public {
+        string memory firstEnsName = "alice1.hsk";
+        string memory secondEnsName = "alice2.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        // First approve KYC with level 1
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
+
+        // First request
+        vm.startPrank(user);
+        vm.deal(user, totalFee * 2);
+        kycSBT.requestKyc{value: totalFee}(firstEnsName);
+        vm.stopPrank();
+
+        // Approve higher level
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 2);
+
+        // Second request with new level
+        vm.startPrank(user);
+        kycSBT.requestKyc{value: totalFee}(secondEnsName);
+
+        // Verify updated level and new name
+        (
+            string memory storedName,
+            IKycSBT.KycLevel level,
+            IKycSBT.KycStatus status,
+            
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(storedName, secondEnsName, "New ENS name not stored correctly");
+        assertEq(uint8(level), 2, "KYC level should be updated to 2");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Status should remain approved");
+
+        vm.stopPrank();
+    }
+
+    function testMultipleRequestKycWithSingleApproval() public {
+        string memory firstEnsName = "alice1.hsk";
+        string memory secondEnsName = "alice2.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        // Single KYC approval
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
+
+        // First request
+        vm.startPrank(user);
+        vm.deal(user, totalFee * 3);  // Triple the fee for three requests
+        kycSBT.requestKyc{value: totalFee}(firstEnsName);
+
+        // Verify first registration
+        (
+            string memory storedName,
+            IKycSBT.KycLevel level,
+            IKycSBT.KycStatus status,
+            
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(storedName, firstEnsName, "First ENS name not stored correctly");
+        assertEq(uint8(level), 1, "Incorrect KYC level after first request");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Incorrect status after first request");
+
+        // Second request with different name (without additional approval)
+        kycSBT.requestKyc{value: totalFee}(secondEnsName);
+
+        // Verify second registration
+        (
+            storedName,
+            level,
+            status,
+            
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(storedName, secondEnsName, "Second ENS name not stored correctly");
+        assertEq(uint8(level), 1, "KYC level should remain unchanged");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Status should remain approved");
+
+        // Verify name mappings
+        assertEq(kycSBT.ensNameToAddress(firstEnsName), address(0), "Old name should be unregistered");
+        assertEq(kycSBT.ensNameToAddress(secondEnsName), user, "New name should be registered");
+
+        // Try third request to verify it still works
+        string memory thirdEnsName = "alice3.hsk";
+        kycSBT.requestKyc{value: totalFee}(thirdEnsName);
+
+        (storedName, level, status, ) = kycSBT.getKycInfo(user);
+        assertEq(storedName, thirdEnsName, "Third ENS name not stored correctly");
+        assertEq(uint8(level), 1, "KYC level should still remain unchanged");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Status should still remain approved");
+
+        assertEq(kycSBT.ensNameToAddress(secondEnsName), address(0), "Second name should be unregistered");
+        assertEq(kycSBT.ensNameToAddress(thirdEnsName), user, "Third name should be registered");
+
+        vm.stopPrank();
+    }
 } 

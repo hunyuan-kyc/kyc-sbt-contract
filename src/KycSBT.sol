@@ -124,8 +124,12 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         // Then check if name is already registered
         require(ensNameToAddress[ensName] == address(0), "KycSBT: Name already registered");
         
-        // Then check if user is approved
-        require(pendingApprovals[msg.sender] > 0, "KycSBT: Not approved");
+        // Check if user has pending approval or is already approved
+        KycInfo storage info = kycInfos[msg.sender];
+        require(
+            pendingApprovals[msg.sender] > 0 || info.status == KycStatus.APPROVED,
+            "KycSBT: Not approved"
+        );
         
         uint256 labelLength = nameBytes.length - suffixBytes.length;
         
@@ -149,9 +153,15 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         }
 
         bytes32 node = keccak256(bytes(ensName));
-        uint8 approvedLevel = pendingApprovals[msg.sender];
+        uint8 approvedLevel = pendingApprovals[msg.sender] > 0 ? 
+            pendingApprovals[msg.sender] : uint8(info.level);
         
-        KycInfo storage info = kycInfos[msg.sender];
+        // Clear old ENS name mapping if exists
+        if (bytes(info.ensName).length > 0) {
+            delete ensNameToAddress[info.ensName];
+        }
+        
+        // Update KYC info
         info.ensName = ensName;
         info.level = KycLevel(approvedLevel);
         info.status = KycStatus.APPROVED;
@@ -168,7 +178,10 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
             block.timestamp + validityPeriod
         );
 
-        _mint(msg.sender, uint256(uint160(msg.sender)));
+        // Only mint token if user doesn't already have one
+        if (balanceOf(msg.sender) == 0) {
+            _mint(msg.sender, uint256(uint160(msg.sender)));
+        }
 
         emit KycRequested(msg.sender, ensName);
         emit KycStatusUpdated(msg.sender, KycStatus.APPROVED);
