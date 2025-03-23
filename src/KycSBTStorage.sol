@@ -7,31 +7,33 @@ import "./interfaces/IKycResolver.sol";
 
 abstract contract KycSBTStorage {
     struct KycInfo {
-        string ensName;          // ENS 域名
-        IKycSBT.KycLevel level;  // KYC 等级
-        IKycSBT.KycStatus status; // KYC 状态
-        uint256 expirationTime;  // 过期时间
-        bytes32 ensNode;         // ENS 节点 hash
-        bool isWhitelisted;      // 是否在白名单中
+        string ensName;          // ENS domain name
+        IKycSBT.KycLevel level;  // KYC level
+        IKycSBT.KycStatus status; // KYC status
+        uint256 createTime;      // Creation timestamp
     }
     
     // Configuration
-    uint256 public registrationFee;
-    uint256 public minNameLength;
-    uint256 public validityPeriod;
-    bool public paused;
-    
+    uint256 public registrationFee = 2 ether;  // Fee required for KYC registration (2 HSK)
+    uint256 public minNameLength = 5;    // Minimum length required for ENS names
+    uint256 public validityPeriod;   // Period for which KYC is valid (in seconds)
+    bool public paused;              // Emergency pause flag
+    string public suffix = ".hsk";   // Default ENS suffix
+    uint256 public ensFee = 2 ether; // ENS registration fee (2 HSK)
+
     // ENS Configuration
-    ENS public ens;
-    IKycResolver public resolver;
-    
-    // Admin management
-    mapping(address => bool) public isAdmin;
-    uint256 public adminCount;
-    
+    ENS public ens;                  // ENS Registry contract
+    IKycResolver public resolver;    // ENS Resolver contract
+
     // KYC mappings
-    mapping(address => KycInfo) public kycInfos;        // address => KycInfo
-    mapping(string => address) public ensNameToAddress; // ensName => address
-    
+    mapping(address => KycInfo) public kycInfos;         // Maps address to KYC info
+    mapping(string => address) public ensNameToAddress;  // Maps ENS name to address
+    mapping(address => uint8) public pendingApprovals;   // Maps address to pending KYC level
+
+    // ENS name approval mappings
+    mapping(address => string) internal approvedEnsNames;  // Maps address to approved ENS name
+    mapping(string => bool) internal isNameApproved;       // Maps ENS name to approval status
+
+    // Reserved storage space for future upgrades
     uint256[100] private __gap;
 }

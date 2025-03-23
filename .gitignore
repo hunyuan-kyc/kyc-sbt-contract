@@ -15,3 +15,7 @@ docs/
 
 # Dependencies
 lib/
+
+# Output configs
+output/config.json
+!output/config.example.json

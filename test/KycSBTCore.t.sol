@@ -1,95 +1,56 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
-import "forge-std/console.sol";
+
 import "./KycSBTTest.sol";
 
-// success
 contract KycSBTCoreTest is KycSBTTest {
-    function testRequestKyc() public {
-        string memory label = "alice1";  // 6个字符
+    function testRequestKycNormalName() public {
+        string memory label = "alice1";
         string memory ensName = string(abi.encodePacked(label, ".hsk"));
-        uint256 fee = kycSBT.registrationFee();
+        uint256 totalFee = _getTotalFee();
+
+        // First approve the user
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1); // Approve with BASIC level
 
         vm.startPrank(user);
-        vm.deal(user, fee);
+        vm.deal(user, totalFee);
 
         vm.expectEmit(true, true, true, true);
         emit KycRequested(user, ensName);
         
-        kycSBT.requestKyc{value: fee}(ensName);
-        vm.stopPrank();
+        kycSBT.requestKyc{value: totalFee}(ensName);
 
-        // 验证状态
+        // Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel kycLevel,
             IKycSBT.KycStatus kycStatus,
-            uint256 expiry,
-            bytes32 ensNode,
-            bool whitelisted
-        ) = kycSBT.kycInfos(user);
+            uint256 createTime
+        ) = kycSBT.getKycInfo(user);
 
         assertEq(storedName, ensName, "ENS name mismatch");
-        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.PENDING), "Status should be PENDING");
-        assertFalse(whitelisted, "Should not be whitelisted");
-    }
-
-    function testApproveKyc() public {
-        string memory label = "alice1";
-        string memory ensName = string(abi.encodePacked(label, ".hsk"));
-        uint256 fee = kycSBT.registrationFee();
-
-        // 用户请求 KYC
-        vm.startPrank(user);
-        vm.deal(user, fee);
-        kycSBT.requestKyc{value: fee}(ensName);
-        vm.stopPrank();
-
-        // owner 批准
-        vm.startPrank(owner);
-        kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
-        vm.stopPrank();
-
-        // 验证状态
-        (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
-            IKycSBT.KycStatus kycStatus,
-            uint256 expiry,
-            bytes32 storedNode,
-            bool whitelisted
-        ) = kycSBT.kycInfos(user);
-
-        assertTrue(whitelisted, "Should be whitelisted");
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
-        
-        (bool isValid, uint8 level) = kycSBT.isHuman(user);
-        assertTrue(isValid, "Should be valid human");
-        assertEq(level, uint8(IKycSBT.KycLevel.BASIC), "Should have BASIC level");
+        assertEq(uint8(kycLevel), 1, "Level should be BASIC");
+        assertGt(createTime, 0, "Create time should be set");
+
+        vm.stopPrank();
     }
 
     function testRevokeKyc() public {
-        // 1. 先完成 KYC 申请和批准流程
-        string memory label = "alice1";
-        string memory ensName = string(abi.encodePacked(label, ".hsk"));
-        uint256 fee = kycSBT.registrationFee();
+        string memory ensName = "alice1.hsk";
+        uint256 totalFee = _getTotalFee();
 
-        // 用户申请 KYC
+        // First approve the user
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
+
         vm.startPrank(user);
-        vm.deal(user, fee);
-        kycSBT.requestKyc{value: fee}(ensName);
-        vm.stopPrank();
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
 
-        // owner 批准 KYC
-        vm.startPrank(owner);
-        kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
-
-        // 2. 测试撤销 KYC
-        bytes32 ensNode = keccak256(bytes(ensName));
-        
-        // 预期事件，按照实际触发顺序排列
-        vm.expectEmit(true, true, true, true);
-        emit KycStatusChanged(ensNode, false, uint8(IKycSBT.KycLevel.BASIC));
+        // Test self-revocation
+        bytes32 node = keccak256(bytes(ensName));
         
         vm.expectEmit(true, true, true, true);
         emit KycStatusUpdated(user, IKycSBT.KycStatus.REVOKED);
@@ -99,52 +60,141 @@ contract KycSBTCoreTest is KycSBTTest {
         
         kycSBT.revokeKyc(user);
 
-        // 3. 验证状态
+        // Verify state
+        (
+            ,
+            ,
+            IKycSBT.KycStatus kycStatus,
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
+        vm.stopPrank();
+
+        // Test owner revocation should fail when already revoked
+        vm.startPrank(owner);
+        vm.expectRevert("KycSBT: Not approved");
+        kycSBT.revokeKyc(user);
+        vm.stopPrank();
+    }
+
+    function testOwnerRevokeKyc() public {
+        string memory ensName = "alice2.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        // First approve the user
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
+
+        vm.startPrank(user);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
+        vm.stopPrank();
+
+        // Test owner revocation
+        vm.startPrank(owner);
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycStatusUpdated(user, IKycSBT.KycStatus.REVOKED);
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycRevoked(user);
+        
+        kycSBT.revokeKyc(user);
+
+        (
+            ,
+            ,
+            IKycSBT.KycStatus kycStatus,
+        ) = kycSBT.getKycInfo(user);
+
+        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
+        vm.stopPrank();
+    }
+
+    function testSetValidityPeriod() public {
+        uint256 newPeriod = 180 days;
+        
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit ValidityPeriodUpdated(newPeriod);
+        
+        kycSBT.setValidityPeriod(newPeriod);
+        assertEq(kycSBT.validityPeriod(), newPeriod, "Validity period not updated");
+        vm.stopPrank();
+    }
+
+    function testSetValidityPeriodNotOwner() public {
+        vm.startPrank(user);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
+        kycSBT.setValidityPeriod(180 days);
+        vm.stopPrank();
+    }
+
+    function testSetInvalidValidityPeriod() public {
+        vm.startPrank(owner);
+        vm.expectRevert("KycSBT: Invalid period");
+        kycSBT.setValidityPeriod(0);
+        vm.stopPrank();
+    }
+
+    function testApproveNewUser() public {
+        vm.startPrank(owner);
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycApprovalPending(user, 2);
+        
+        kycSBT.approveKyc(user, 2);
+        
+        assertEq(kycSBT.pendingApprovals(user), 2, "Pending approval not set");
+        
+        vm.stopPrank();
+    }
+
+
+    function testApproveAfterRevoke() public {
+        string memory ensName = "alice1.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        // First approve and register
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
+
+        vm.startPrank(user);
+        vm.deal(user, totalFee);
+        kycSBT.requestKyc{value: totalFee}(ensName);
+        
+        // Revoke KYC
+        kycSBT.revokeKyc(user);
+        vm.stopPrank();
+
+        // Re-approve with new level
+        vm.startPrank(owner);
+        
+        vm.expectEmit(true, true, true, true);
+        emit KycStatusUpdated(user, IKycSBT.KycStatus.APPROVED);
+        
+        vm.expectEmit(true, true, true, true);
+        emit AddressApproved(user, IKycSBT.KycLevel(3));
+        
+        kycSBT.approveKyc(user, 3);
+
+        // Verify state
         (
             string memory storedName,
             IKycSBT.KycLevel kycLevel,
             IKycSBT.KycStatus kycStatus,
-            uint256 expiry,
-            bytes32 storedNode,
-            bool whitelisted
-        ) = kycSBT.kycInfos(user);
+            uint256 createTime
+        ) = kycSBT.getKycInfo(user);
 
-        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
-        assertFalse(whitelisted, "Should not be whitelisted");
+        assertEq(storedName, ensName, "ENS name should remain unchanged");
+        assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
+        assertEq(uint8(kycLevel), 3, "Level should be updated to 3");
+
+        // Verify isHuman returns correct values
+        (bool isHuman, uint8 level) = kycSBT.isHuman(user);
+        assertTrue(isHuman, "Should be verified as human");
+        assertEq(level, 3, "Should have level 3");
         
-        // 4. 验证 ENS 解析器状态
-        assertFalse(resolver.isValid(ensNode), "ENS KYC status should be invalid");
-        assertEq(resolver.addr(ensNode), user, "ENS address should remain unchanged");
-
         vm.stopPrank();
-    }
-
-    function testIsHumanWithENS() public {
-        // 1. 先完成 KYC 申请和批准流程
-        string memory label = "alice1";
-        string memory ensName = string(abi.encodePacked(label, ".hsk"));
-        uint256 fee = kycSBT.registrationFee();
-
-        // 用户申请 KYC
-        vm.startPrank(user);
-        vm.deal(user, fee);
-        kycSBT.requestKyc{value: fee}(ensName);
-        vm.stopPrank();
-
-        // owner 批准
-        vm.startPrank(owner);
-        kycSBT.approve(user, IKycSBT.KycLevel.BASIC);
-        vm.stopPrank();
-
-        // 2. 验证 isHuman 查询
-        (bool isValid, uint8 level) = kycSBT.isHuman(user);
-        assertTrue(isValid, "Should be valid human");
-        assertEq(level, uint8(IKycSBT.KycLevel.BASIC), "Should have BASIC level");
-
-        // 3. 验证非 KYC 用户
-        address nonKycUser = address(4);
-        (isValid, level) = kycSBT.isHuman(nonKycUser);
-        assertFalse(isValid, "Should not be valid human");
-        assertEq(level, 0, "Should have NO level");
     }
 } 

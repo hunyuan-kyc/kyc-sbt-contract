@@ -10,6 +10,7 @@ This project implements a KYC system where:
 - KYC status is bound to ENS names and cannot be transferred (Soulbound)
 - Multiple KYC levels supported (BASIC, ADVANCED, PREMIUM)
 
+![Main Process](process.jpg "Main Process")
 ## Features
 
 - **ENS Integration**
@@ -61,7 +62,7 @@ function isHuman(address account) external view returns (bool, uint8);
 ### Admin Functions
 ```solidity
 // Approve KYC request
-function approve(address user, KycLevel level) external;
+function approveKyc(address user, KycLevel level) external;
 
 // Revoke KYC status
 function revokeKyc(address user) external;
@@ -177,13 +178,7 @@ forge test -vvv
 
 ## Deployment
 
-```bash
-# Deploy to local network
-forge script script/Deploy.s.sol --rpc-url localhost
 
-# Deploy to testnet
-forge script script/Deploy.s.sol --rpc-url goerli --broadcast --verify
-```
 
 ## Security Considerations
 
@@ -196,6 +191,8 @@ forge script script/Deploy.s.sol --rpc-url goerli --broadcast --verify
    - Owner privileges
    - Admin management
    - Emergency controls
+   - Disabled constructor (prevent direct initialization)
+   - Initializable pattern for upgrades
 
 3. Fee Management
    - Registration fee
