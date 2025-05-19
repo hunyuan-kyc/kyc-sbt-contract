@@ -9,18 +9,24 @@ interface IKycSBT {
     enum KycStatus { NONE, APPROVED, REVOKED }
 
     // Events
-    event KycApprovalPending(address indexed user, uint8 level);
+    event KycApprovalPending(address indexed user, uint8 level, uint256 birthDate, string region);
     event KycRequested(address indexed user, string ensName);
     event KycLevelUpdated(address indexed user, KycLevel oldLevel, KycLevel newLevel);
     event KycStatusUpdated(address indexed user, KycStatus status);
     event KycRevoked(address indexed user);
-    event AddressApproved(address indexed user, KycLevel level);
+    event AddressApproved(address indexed user, KycLevel level, uint256 birthDate, string region);
     event ValidityPeriodUpdated(uint256 newPeriod);
     event RegistrationFeeUpdated(uint256 newFee);
     event EnsFeeUpdated(uint256 newFee);
     event EnsNameApproved(address indexed user, string ensName);
 
     // Core functions
+    function approveKyc(
+        address user,
+        uint8 level,
+        uint256 birthDate,
+        string calldata region
+    ) external;
     function requestKyc(string calldata ensName) external payable;
     function revokeKyc(address user) external;
     function isHuman(address account) external view returns (bool, uint8);
@@ -28,7 +34,9 @@ interface IKycSBT {
         string memory ensName,
         KycLevel level,
         KycStatus status,
-        uint256 createTime
+        uint256 createTime,
+        uint256 birthDate,
+        string memory region
     );
 
     // ENS name approval functions

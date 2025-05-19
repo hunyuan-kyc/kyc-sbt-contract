@@ -17,6 +17,8 @@ contract KycResolver is IKycResolver, Ownable {
     mapping(bytes32 => bool) public isValidated;     // KYC validation status
     mapping(bytes32 => uint8) public kycLevels;      // KYC level for each node
     mapping(bytes32 => uint256) public validUntil;   // Expiration timestamp
+    mapping(bytes32 => uint256) public birthDates;   // Birthdate timestamp for each node
+    mapping(bytes32 => string) public regions;       // Region string for each node
     mapping(bytes32 => address) public ensAddrs;     // Address records
 
     constructor(ENS _ens) Ownable(msg.sender) {
@@ -45,13 +47,17 @@ contract KycResolver is IKycResolver, Ownable {
         bytes32 node,
         bool _isValid,
         uint8 level,
-        uint256 expiry
+        uint256 expiry,
+        uint256 _birthDate,
+        string calldata _region
     ) external override onlyOwner {
         isValidated[node] = _isValid;
         kycLevels[node] = level;
         validUntil[node] = expiry;
+        birthDates[node] = _birthDate;
+        regions[node] = _region;
         
-        emit KycStatusChanged(node, _isValid, level);
+        emit KycStatusChanged(node, _isValid, level, _birthDate, _region);
     }
 
     function kycLevel(bytes32 node) external view override returns (uint8) {
@@ -64,5 +70,13 @@ contract KycResolver is IKycResolver, Ownable {
 
     function expirationTime(bytes32 node) external view override returns (uint256) {
         return validUntil[node];
+    }
+
+    function birthDate(bytes32 node) external view override returns (uint256) {
+        return birthDates[node];
+    }
+
+    function region(bytes32 node) external view override returns (string memory) {
+        return regions[node];
     }
 } 

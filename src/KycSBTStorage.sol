@@ -11,6 +11,8 @@ abstract contract KycSBTStorage {
         IKycSBT.KycLevel level;  // KYC level
         IKycSBT.KycStatus status; // KYC status
         uint256 createTime;      // Creation timestamp
+        uint256 birthDate;       // User's birth date
+        string region;           // User's region
     }
     
     // Configuration

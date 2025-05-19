@@ -23,6 +23,11 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         _;
     }
 
+    // Renamed for clarity and to add new pending fields
+    mapping(address => uint8) public pendingKycLevels; 
+    mapping(address => bytes32) public pendingBirthDateHashes; // Changed to store hash
+    mapping(address => bytes32) public pendingRegionHashes;    // Changed to store hash
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     // constructor() {
     //     _disableInitializers();
@@ -77,17 +82,23 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
      * @dev Approves or updates KYC level for a user
      * @param user Address to approve
      * @param level KYC level (1-4)
+     * @param _birthDateHash Hash of the user's birth date (with salt)
+     * @param _regionHash Hash of the user's region (with salt)
      */
-    function approveKyc(address user, uint8 level) external onlyOwner {
+    function approveKyc(address user, uint8 level, bytes32 _birthDateHash, bytes32 _regionHash) external override onlyOwner {
         require(user != address(0), "KycSBT: Zero address");
         require(level >= 1 && level <= 4, "KycSBT: Invalid level");
+        require(_birthDateHash != bytes32(0), "KycSBT: Invalid birthDateHash"); // Owner must validate original date off-chain
+        require(_regionHash != bytes32(0), "KycSBT: Invalid regionHash");       // Owner must validate original region off-chain
         
         KycInfo storage info = kycInfos[user];
         
         if (bytes(info.ensName).length == 0) {
             // New user - store approval for future requestKyc
-            pendingApprovals[user] = level;
-            emit KycApprovalPending(user, level);
+            pendingKycLevels[user] = level;
+            pendingBirthDateHashes[user] = _birthDateHash;
+            pendingRegionHashes[user] = _regionHash;
+            emit KycApprovalPending(user, level, _birthDateHash, _regionHash);
             return;
         }
 
@@ -96,17 +107,21 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         if (info.status != KycStatus.APPROVED) {
             info.status = KycStatus.APPROVED;
         }
+        info.birthDateHash = _birthDateHash; // Store hash
+        info.regionHash = _regionHash;       // Store hash
 
         bytes32 node = keccak256(bytes(info.ensName));
         resolver.setKycStatus(
             node,
             true,
             level,
-            block.timestamp + validityPeriod
+            block.timestamp + validityPeriod,
+            _birthDateHash,
+            _regionHash
         );
 
         emit KycStatusUpdated(user, KycStatus.APPROVED);
-        emit AddressApproved(user, KycLevel(level));
+        emit AddressApproved(user, KycLevel(level), _birthDateHash, _regionHash);
     }
 
     /**
@@ -127,7 +142,7 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         // Check if user has pending approval or is already approved
         KycInfo storage info = kycInfos[msg.sender];
         require(
-            pendingApprovals[msg.sender] > 0 || info.status == KycStatus.APPROVED,
+            pendingKycLevels[msg.sender] > 0 || info.status == KycStatus.APPROVED,
             "KycSBT: Not approved"
         );
         
@@ -153,29 +168,51 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         }
 
         bytes32 node = keccak256(bytes(ensName));
-        uint8 approvedLevel = pendingApprovals[msg.sender] > 0 ? 
-            pendingApprovals[msg.sender] : uint8(info.level);
+        
+        uint8 kycLevelToSet;
+        bytes32 birthDateHashToSet; // Changed
+        bytes32 regionHashToSet;    // Changed
+
+        if (pendingKycLevels[msg.sender] > 0) {
+            kycLevelToSet = pendingKycLevels[msg.sender];
+            birthDateHashToSet = pendingBirthDateHashes[msg.sender];
+            regionHashToSet = pendingRegionHashes[msg.sender];
+
+            delete pendingKycLevels[msg.sender];
+            delete pendingBirthDateHashes[msg.sender];
+            delete pendingRegionHashes[msg.sender];
+        } else {
+            // This case implies an already approved user is re-requesting (e.g., changing ENS name)
+            // or there was no prior specific approval call for this requestKyc action.
+            // We use their existing KYC info.
+            kycLevelToSet = uint8(info.level);
+            birthDateHashToSet = info.birthDateHash;
+            regionHashToSet = info.regionHash;
+        }
         
         // Clear old ENS name mapping if exists
         if (bytes(info.ensName).length > 0) {
             delete ensNameToAddress[info.ensName];
         }
-        
+
         // Update KYC info
         info.ensName = ensName;
-        info.level = KycLevel(approvedLevel);
+        info.level = KycLevel(kycLevelToSet);
+        info.birthDateHash = birthDateHashToSet; // Store hash
+        info.regionHash = regionHashToSet;       // Store hash
         info.status = KycStatus.APPROVED;
         info.createTime = block.timestamp;
 
         ensNameToAddress[ensName] = msg.sender;
-        delete pendingApprovals[msg.sender];
         
         resolver.setAddr(node, msg.sender);
         resolver.setKycStatus(
             node,
             true,
-            approvedLevel,
-            block.timestamp + validityPeriod
+            kycLevelToSet, // Corrected variable name
+            block.timestamp + validityPeriod,
+            birthDateHashToSet,
+            regionHashToSet
         );
 
         // Only mint token if user doesn't already have one
@@ -185,7 +222,7 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
 
         emit KycRequested(msg.sender, ensName);
         emit KycStatusUpdated(msg.sender, KycStatus.APPROVED);
-        emit AddressApproved(msg.sender, KycLevel(approvedLevel));
+        emit AddressApproved(msg.sender, KycLevel(kycLevelToSet), birthDateHashToSet, regionHashToSet);
     }
 
     /**
@@ -224,7 +261,9 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
             node,
             false,
             uint8(info.level),
-            0  // Set expiry to 0 when revoking
+            0,  // Set expiry to 0 when revoking
+            bytes32(0),  // Clear birthDateHash
+            bytes32(0)   // Clear regionHash
         );
 
         emit KycStatusUpdated(user, KycStatus.REVOKED);
@@ -255,19 +294,25 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
      * @return level KYC level
      * @return status KYC status
      * @return createTime Creation timestamp
+     * @return birthDateHash Hash of user's birth date
+     * @return regionHash Hash of user's region
      */
     function getKycInfo(address account) external view override returns (
         string memory ensName,
         KycLevel level,
         KycStatus status,
-        uint256 createTime
+        uint256 createTime,
+        bytes32 birthDateHash, // Changed
+        bytes32 regionHash     // Changed
     ) {
         KycInfo memory info = kycInfos[account];
         return (
             info.ensName,
             info.level,
             info.status,
-            info.createTime
+            info.createTime,
+            info.birthDateHash, // Return hash
+            info.regionHash    // Return hash
         );
     }
 
