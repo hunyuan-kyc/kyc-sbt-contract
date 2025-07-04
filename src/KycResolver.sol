@@ -12,12 +12,12 @@ import "./interfaces/IKycResolver.sol";
  */
 contract KycResolver is IKycResolver, Ownable {
     ENS public immutable ens;
-    
+
     // ENS node mappings
-    mapping(bytes32 => bool) public isValidated;     // KYC validation status
-    mapping(bytes32 => uint8) public kycLevels;      // KYC level for each node
-    mapping(bytes32 => uint256) public validUntil;   // Expiration timestamp
-    mapping(bytes32 => address) public ensAddrs;     // Address records
+    mapping(bytes32 => bool) public isValidated; // KYC validation status
+    mapping(bytes32 => uint8) public kycLevels; // KYC level for each node
+    mapping(bytes32 => uint256) public validUntil; // Expiration timestamp
+    mapping(bytes32 => address) public ensAddrs; // Address records
 
     constructor(ENS _ens) Ownable(msg.sender) {
         ens = _ens;
@@ -41,16 +41,11 @@ contract KycResolver is IKycResolver, Ownable {
         return ensAddrs[node];
     }
 
-    function setKycStatus(
-        bytes32 node,
-        bool _isValid,
-        uint8 level,
-        uint256 expiry
-    ) external override onlyOwner {
+    function setKycStatus(bytes32 node, bool _isValid, uint8 level, uint256 expiry) external override onlyOwner {
         isValidated[node] = _isValid;
         kycLevels[node] = level;
         validUntil[node] = expiry;
-        
+
         emit KycStatusChanged(node, _isValid, level);
     }
 
@@ -65,4 +60,4 @@ contract KycResolver is IKycResolver, Ownable {
     function expirationTime(bytes32 node) external view override returns (uint256) {
         return validUntil[node];
     }
-} 
+}

@@ -16,43 +16,43 @@ contract DeployScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        
+
         vm.startBroadcast(deployerPrivateKey);
-        
+
         // Step 1: Deploy ENS Registry
         ENSRegistry ensRegistry = new ENSRegistry();
         console.log("ENS Registry deployed at:", address(ensRegistry));
-        
+
         // Step 2: Deploy KYC Resolver
         KycResolver resolver = new KycResolver(ENS(address(ensRegistry)));
         console.log("KYC Resolver deployed at:", address(resolver));
-        
+
         // Step 3: Deploy and initialize KYC SBT
         KycSBT kycSBT = new KycSBT();
         kycSBT.initialize();
         console.log("KYC SBT deployed at:", address(kycSBT));
-        
+
         // Step 4: Configure ENS and Resolver
         kycSBT.setENSAndResolver(address(ensRegistry), address(resolver));
-        
+
         // Step 5: Set up ENS domain
         bytes32 rootNode = bytes32(0);
         bytes32 labelHash = keccak256("hsk");
         bytes32 hskNode = keccak256(abi.encodePacked(rootNode, labelHash));
-        
+
         // Assign .hsk ownership to deployer temporarily
         ensRegistry.setSubnodeOwner(rootNode, labelHash, deployer);
         console.log("HSK node created and owned by deployer:", vm.toString(hskNode));
-        
+
         // Set resolver after ownership confirmation
         require(ensRegistry.owner(hskNode) == deployer, "Deployer not owner of HSK node");
         ensRegistry.setResolver(hskNode, address(resolver));
         console.log("Resolver set for HSK node");
-        
+
         // Transfer .hsk ownership to KYC SBT contract
         ensRegistry.setSubnodeOwner(rootNode, labelHash, address(kycSBT));
         console.log("HSK node ownership transferred to KycSBT");
-        
+
         // Set initial fees for test environment (0.01 HSK)
         kycSBT.setRegistrationFee(0.01 ether);
         kycSBT.setEnsFee(0.01 ether);
@@ -78,4 +78,4 @@ contract DeployScript is Script {
         vm.writeJson(json, path);
         console.log("\nDeployment config saved to:", path);
     }
-} 
+}

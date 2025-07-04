@@ -18,16 +18,13 @@ contract KycSBTCoreTest is KycSBTTest {
 
         vm.expectEmit(true, true, true, true);
         emit KycRequested(user, ensName);
-        
-        kycSBT.requestKyc{value: totalFee}(ensName);
+
+        bytes32 kycDataHash = keccak256(abi.encodePacked(uint256(1), uint256(19900101), keccak256(abi.encodePacked("test_salt"))));
+        kycSBT.requestKyc{value: totalFee}(ensName, kycDataHash);
 
         // Verify state
-        (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
-            IKycSBT.KycStatus kycStatus,
-            uint256 createTime
-        ) = kycSBT.getKycInfo(user);
+        (string memory storedName, IKycSBT.KycLevel kycLevel, IKycSBT.KycStatus kycStatus, uint256 createTime) =
+            kycSBT.getKycInfo(user);
 
         assertEq(storedName, ensName, "ENS name mismatch");
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
@@ -47,25 +44,21 @@ contract KycSBTCoreTest is KycSBTTest {
 
         vm.startPrank(user);
         vm.deal(user, totalFee);
-        kycSBT.requestKyc{value: totalFee}(ensName);
+        kycSBT.requestKyc{value: totalFee}(ensName, 0);
 
         // Test self-revocation
         bytes32 node = keccak256(bytes(ensName));
-        
+
         vm.expectEmit(true, true, true, true);
         emit KycStatusUpdated(user, IKycSBT.KycStatus.REVOKED);
-        
+
         vm.expectEmit(true, true, true, true);
         emit KycRevoked(user);
-        
+
         kycSBT.revokeKyc(user);
 
         // Verify state
-        (
-            ,
-            ,
-            IKycSBT.KycStatus kycStatus,
-        ) = kycSBT.getKycInfo(user);
+        (,, IKycSBT.KycStatus kycStatus,) = kycSBT.getKycInfo(user);
 
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
         vm.stopPrank();
@@ -87,25 +80,21 @@ contract KycSBTCoreTest is KycSBTTest {
 
         vm.startPrank(user);
         vm.deal(user, totalFee);
-        kycSBT.requestKyc{value: totalFee}(ensName);
+        kycSBT.requestKyc{value: totalFee}(ensName, 0);
         vm.stopPrank();
 
         // Test owner revocation
         vm.startPrank(owner);
-        
+
         vm.expectEmit(true, true, true, true);
         emit KycStatusUpdated(user, IKycSBT.KycStatus.REVOKED);
-        
+
         vm.expectEmit(true, true, true, true);
         emit KycRevoked(user);
-        
+
         kycSBT.revokeKyc(user);
 
-        (
-            ,
-            ,
-            IKycSBT.KycStatus kycStatus,
-        ) = kycSBT.getKycInfo(user);
+        (,, IKycSBT.KycStatus kycStatus,) = kycSBT.getKycInfo(user);
 
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.REVOKED), "Status should be REVOKED");
         vm.stopPrank();
@@ -113,11 +102,11 @@ contract KycSBTCoreTest is KycSBTTest {
 
     function testSetValidityPeriod() public {
         uint256 newPeriod = 180 days;
-        
+
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit ValidityPeriodUpdated(newPeriod);
-        
+
         kycSBT.setValidityPeriod(newPeriod);
         assertEq(kycSBT.validityPeriod(), newPeriod, "Validity period not updated");
         vm.stopPrank();
@@ -139,17 +128,16 @@ contract KycSBTCoreTest is KycSBTTest {
 
     function testApproveNewUser() public {
         vm.startPrank(owner);
-        
+
         vm.expectEmit(true, true, true, true);
         emit KycApprovalPending(user, 2);
-        
+
         kycSBT.approveKyc(user, 2);
-        
+
         assertEq(kycSBT.pendingApprovals(user), 2, "Pending approval not set");
-        
+
         vm.stopPrank();
     }
-
 
     function testApproveAfterRevoke() public {
         string memory ensName = "alice1.hsk";
@@ -161,30 +149,26 @@ contract KycSBTCoreTest is KycSBTTest {
 
         vm.startPrank(user);
         vm.deal(user, totalFee);
-        kycSBT.requestKyc{value: totalFee}(ensName);
-        
+        kycSBT.requestKyc{value: totalFee}(ensName, 0);
+
         // Revoke KYC
         kycSBT.revokeKyc(user);
         vm.stopPrank();
 
         // Re-approve with new level
         vm.startPrank(owner);
-        
+
         vm.expectEmit(true, true, true, true);
         emit KycStatusUpdated(user, IKycSBT.KycStatus.APPROVED);
-        
+
         vm.expectEmit(true, true, true, true);
         emit AddressApproved(user, IKycSBT.KycLevel(3));
-        
+
         kycSBT.approveKyc(user, 3);
 
         // Verify state
-        (
-            string memory storedName,
-            IKycSBT.KycLevel kycLevel,
-            IKycSBT.KycStatus kycStatus,
-            uint256 createTime
-        ) = kycSBT.getKycInfo(user);
+        (string memory storedName, IKycSBT.KycLevel kycLevel, IKycSBT.KycStatus kycStatus, uint256 createTime) =
+            kycSBT.getKycInfo(user);
 
         assertEq(storedName, ensName, "ENS name should remain unchanged");
         assertEq(uint8(kycStatus), uint8(IKycSBT.KycStatus.APPROVED), "Status should be APPROVED");
@@ -194,7 +178,7 @@ contract KycSBTCoreTest is KycSBTTest {
         (bool isHuman, uint8 level) = kycSBT.isHuman(user);
         assertTrue(isHuman, "Should be verified as human");
         assertEq(level, 3, "Should have level 3");
-        
+
         vm.stopPrank();
     }
-} 
+}

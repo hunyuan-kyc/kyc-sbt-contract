@@ -31,33 +31,33 @@ abstract contract KycSBTTest is Test {
 
     function setUp() public virtual {
         vm.startPrank(owner);
-        
+
         // Deploy ENS Registry
         ens = ENS(address(new ENSRegistry()));
-        
+
         // Deploy resolver
         resolver = new KycResolver(ens);
-        
+
         // Deploy and initialize KYC SBT
         kycSBT = new KycSBT();
         kycSBT.initialize();
-        
+
         // Configure ENS and resolver
         kycSBT.setENSAndResolver(address(ens), address(resolver));
-        
+
         // Set up ENS domain
         bytes32 hskNode = keccak256(abi.encodePacked(bytes32(0), keccak256("hsk")));
         ENSRegistry(address(ens)).setSubnodeOwner(bytes32(0), keccak256("hsk"), owner);
-        
+
         // Set resolver
         ens.setResolver(hskNode, address(resolver));
-        
+
         // Authorize KYC SBT contract to operate resolver
         resolver.transferOwnership(address(kycSBT));
-        
+
         // Transfer .hsk domain ownership to KYC SBT
         ENSRegistry(address(ens)).setSubnodeOwner(bytes32(0), keccak256("hsk"), address(kycSBT));
-        
+
         vm.stopPrank();
     }
 

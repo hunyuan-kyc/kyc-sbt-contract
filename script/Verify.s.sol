@@ -16,7 +16,7 @@ contract VerifyScript is Script {
     function run() external {
         string memory path = "output/config.json";
         string memory json = vm.readFile(path);
-        
+
         // Load addresses from config
         address deployer = abi.decode(vm.parseJson(json, ".deployer"), (address));
         address ensAddress = abi.decode(vm.parseJson(json, ".ensRegistry"), (address));
@@ -44,7 +44,7 @@ contract VerifyScript is Script {
         KycResolver resolver = KycResolver(resolverAddress);
 
         console.log("\n=== Verifying KycSBT Contract ===");
-        
+
         // Step 1: Verify basic settings
         console.log("\nBasic Settings:");
         console.log("Registration Fee:", kycSBT.registrationFee());
@@ -84,4 +84,4 @@ contract VerifyScript is Script {
 
         console.log("\n=== Verification Completed Successfully ===\n");
     }
-} 
+}

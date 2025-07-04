@@ -11,4 +11,4 @@ interface IKycResolver {
     function isValid(bytes32 node) external view returns (bool);
     function expirationTime(bytes32 node) external view returns (uint256);
     function setKycStatus(bytes32 node, bool isValid, uint8 level, uint256 expiry) external;
-} 
+}

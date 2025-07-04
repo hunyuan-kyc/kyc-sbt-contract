@@ -14,7 +14,6 @@ import "./interfaces/IKycResolver.sol";
  * @dev Non-transferable tokens representing KYC status, integrated with ENS
  */
 contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT {
-    
     /**
      * @dev Ensures the contract is not paused
      */
@@ -35,7 +34,18 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         __ERC721_init("KYC SBT", "KYC");
         __Ownable_init(msg.sender);
         minNameLength = 5;
-        validityPeriod = 365 days;  // Default validity period
+        validityPeriod = 365 days; // Default validity period
+    }
+
+    /**
+     * @notice Add or remove addresses from the mint fee whitelist.
+     * @param users The list of user addresses.
+     * @param status The whitelist status to set (true = whitelisted, false = not).
+     */
+    function setWhitelist(address[] calldata users, bool status) external onlyOwner {
+        for (uint256 i = 0; i < users.length; i++) {
+            isWhitelisted[users[i]] = status;
+        }
     }
 
     /**
@@ -57,7 +67,7 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         require(bytes(ensName).length > 0, "KycSBT: Empty name");
         require(user != address(0), "KycSBT: Zero address");
         require(ensNameToAddress[ensName] == address(0), "KycSBT: Name already registered");
-        
+
         approvedEnsNames[user] = ensName;
         isNameApproved[ensName] = true;
         emit EnsNameApproved(user, ensName);
@@ -81,9 +91,9 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     function approveKyc(address user, uint8 level) external onlyOwner {
         require(user != address(0), "KycSBT: Zero address");
         require(level >= 1 && level <= 4, "KycSBT: Invalid level");
-        
+
         KycInfo storage info = kycInfos[user];
-        
+
         if (bytes(info.ensName).length == 0) {
             // New user - store approval for future requestKyc
             pendingApprovals[user] = level;
@@ -98,41 +108,33 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
         }
 
         bytes32 node = keccak256(bytes(info.ensName));
-        resolver.setKycStatus(
-            node,
-            true,
-            level,
-            block.timestamp + validityPeriod
-        );
+        resolver.setKycStatus(node, true, level, block.timestamp + validityPeriod);
 
         emit KycStatusUpdated(user, KycStatus.APPROVED);
         emit AddressApproved(user, KycLevel(level));
     }
 
     /**
-     * @dev Requests KYC verification with an ENS name
+     * @dev Requests KYC verification with an ENS name for the message sender
      * @param ensName The ENS name to be registered
      */
-    function requestKyc(string calldata ensName) external payable override whenNotPaused {
+    function requestKyc(string calldata ensName, bytes32 _kycDataHash) external payable override whenNotPaused {
         bytes memory nameBytes = bytes(ensName);
         bytes memory suffixBytes = bytes(suffix);
-        
+
         // First check name requirements
-        require(nameBytes.length >= suffixBytes.length, "KycSBT: Name too short"); 
+        require(nameBytes.length >= suffixBytes.length, "KycSBT: Name too short");
         require(_hasSuffix(ensName, suffix), "KycSBT: Invalid suffix");
-        
+
         // Then check if name is already registered
         require(ensNameToAddress[ensName] == address(0), "KycSBT: Name already registered");
-        
+
         // Check if user has pending approval or is already approved
         KycInfo storage info = kycInfos[msg.sender];
-        require(
-            pendingApprovals[msg.sender] > 0 || info.status == KycStatus.APPROVED,
-            "KycSBT: Not approved"
-        );
-        
+        require(pendingApprovals[msg.sender] > 0 || info.status == KycStatus.APPROVED, "KycSBT: Not approved");
+
         uint256 labelLength = nameBytes.length - suffixBytes.length;
-        
+
         // Check name length and approval status
         if (labelLength <= 4) {
             require(
@@ -141,42 +143,44 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
             );
             require(isNameApproved[ensName], "KycSBT: Short name not approved");
         }
-        
-        uint256 totalFee = registrationFee + ensFee;
-        require(msg.value >= totalFee, "KycSBT: Insufficient fee");
-        
+
+        uint256 currentTotalFee = registrationFee + ensFee;
+        uint256 feeToPay = 0;
+        if (!isWhitelisted[msg.sender]) {
+            feeToPay = currentTotalFee;
+        }
+
+        if (feeToPay > 0) {
+            require(msg.value >= feeToPay, "KycSBT: Insufficient fee");
+        }
+
         // Process refund if excess fee was sent
-        if (msg.value > totalFee) {
-            uint256 refundAmount = msg.value - totalFee;
-            (bool success, ) = msg.sender.call{value: refundAmount}("");
+        if (msg.value > feeToPay) {
+            uint256 refundAmount = msg.value - feeToPay;
+            (bool success,) = msg.sender.call{value: refundAmount}("");
             require(success, "KycSBT: Refund failed");
         }
 
         bytes32 node = keccak256(bytes(ensName));
-        uint8 approvedLevel = pendingApprovals[msg.sender] > 0 ? 
-            pendingApprovals[msg.sender] : uint8(info.level);
-        
+        uint8 approvedLevel = pendingApprovals[msg.sender] > 0 ? pendingApprovals[msg.sender] : uint8(info.level);
+
         // Clear old ENS name mapping if exists
         if (bytes(info.ensName).length > 0) {
             delete ensNameToAddress[info.ensName];
         }
-        
+
         // Update KYC info
         info.ensName = ensName;
         info.level = KycLevel(approvedLevel);
         info.status = KycStatus.APPROVED;
         info.createTime = block.timestamp;
+        info.kycDataHash = _kycDataHash;
 
         ensNameToAddress[ensName] = msg.sender;
         delete pendingApprovals[msg.sender];
-        
+
         resolver.setAddr(node, msg.sender);
-        resolver.setKycStatus(
-            node,
-            true,
-            approvedLevel,
-            block.timestamp + validityPeriod
-        );
+        resolver.setKycStatus(node, true, approvedLevel, block.timestamp + validityPeriod);
 
         // Only mint token if user doesn't already have one
         if (balanceOf(msg.sender) == 0) {
@@ -224,7 +228,7 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
             node,
             false,
             uint8(info.level),
-            0  // Set expiry to 0 when revoking
+            0 // Set expiry to 0 when revoking
         );
 
         emit KycStatusUpdated(user, KycStatus.REVOKED);
@@ -240,11 +244,11 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     function isHuman(address account) external view override returns (bool, uint8) {
         KycInfo memory info = kycInfos[account];
         bytes32 node = keccak256(bytes(info.ensName));
-        
+
         if (info.status == KycStatus.APPROVED && resolver.isValid(node)) {
             return (true, uint8(info.level));
         }
-        
+
         return (false, 0);
     }
 
@@ -256,19 +260,14 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
      * @return status KYC status
      * @return createTime Creation timestamp
      */
-    function getKycInfo(address account) external view override returns (
-        string memory ensName,
-        KycLevel level,
-        KycStatus status,
-        uint256 createTime
-    ) {
+    function getKycInfo(address account)
+        external
+        view
+        override
+        returns (string memory ensName, KycLevel level, KycStatus status, uint256 createTime)
+    {
         KycInfo memory info = kycInfos[account];
-        return (
-            info.ensName,
-            info.level,
-            info.status,
-            info.createTime
-        );
+        return (info.ensName, info.level, info.status, info.createTime);
     }
 
     // Admin Functions
@@ -311,7 +310,7 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     function withdrawFees() external onlyOwner {
         uint256 balance = address(this).balance;
         require(balance > 0, "KycSBT.withdrawFees: No fees to withdraw");
-        (bool success, ) = msg.sender.call{value: balance}("");
+        (bool success,) = msg.sender.call{value: balance}("");
         require(success, "KycSBT.withdrawFees: Transfer failed");
     }
 
@@ -324,12 +323,12 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     function _hasSuffix(string memory str, string memory _suffix) internal pure returns (bool) {
         bytes memory strBytes = bytes(str);
         bytes memory suffixBytes = bytes(_suffix);
-        
+
         if (strBytes.length < suffixBytes.length) {
             return false;
         }
-        
-        for (uint i = 0; i < suffixBytes.length; i++) {
+
+        for (uint256 i = 0; i < suffixBytes.length; i++) {
             if (strBytes[strBytes.length - suffixBytes.length + i] != suffixBytes[i]) {
                 return false;
             }
@@ -354,4 +353,32 @@ contract KycSBT is ERC721Upgradeable, OwnableUpgradeable, KycSBTStorage, IKycSBT
     function getTotalFee() external view returns (uint256) {
         return registrationFee + ensFee;
     }
-} 
+
+    /**
+     * @notice Verifies if the provided KYC data matches the stored commitment for a user.
+     * @param user The address of the user to verify.
+     * @param countryCode The country code to verify.
+     * @param dateOfBirth The date of birth to verify.
+     * @param salt The salt used to generate the original hash.
+     * @return bool True if the calculated hash matches the stored hash, false otherwise.
+     */
+    function verifyKycData(address user, uint256 countryCode, uint256 dateOfBirth, bytes32 salt)
+        external
+        view
+        returns (bool)
+    {
+        uint256 tokenId = uint256(uint160(user));
+        if (tokenId == 0) {
+            return false; // User does not have a token
+        }
+
+        bytes32 storedHash = kycInfos[user].kycDataHash;
+        if (storedHash == 0) {
+            return false; // No KYC data hash stored
+        }
+
+        bytes32 calculatedHash = keccak256(abi.encodePacked(countryCode, dateOfBirth, salt));
+
+        return storedHash == calculatedHash;
+    }
+}

@@ -3,10 +3,20 @@ pragma solidity ^0.8.19;
 
 interface IKycSBT {
     // @dev KYC levels from lowest to highest
-    enum KycLevel { NONE, BASIC, ADVANCED, PREMIUM, ULTIMATE }
-    
+    enum KycLevel {
+        NONE,
+        BASIC,
+        ADVANCED,
+        PREMIUM,
+        ULTIMATE
+    }
+
     // @dev Only store APPROVED(1) and REVOKED(2) on-chain
-    enum KycStatus { NONE, APPROVED, REVOKED }
+    enum KycStatus {
+        NONE,
+        APPROVED,
+        REVOKED
+    }
 
     // Events
     event KycApprovalPending(address indexed user, uint8 level);
@@ -21,15 +31,17 @@ interface IKycSBT {
     event EnsNameApproved(address indexed user, string ensName);
 
     // Core functions
-    function requestKyc(string calldata ensName) external payable;
+    function requestKyc(string calldata ensName, bytes32 _kycDataHash) external payable;
     function revokeKyc(address user) external;
     function isHuman(address account) external view returns (bool, uint8);
-    function getKycInfo(address account) external view returns (
-        string memory ensName,
-        KycLevel level,
-        KycStatus status,
-        uint256 createTime
-    );
+    function getKycInfo(address account)
+        external
+        view
+        returns (string memory ensName, KycLevel level, KycStatus status, uint256 createTime);
+    function verifyKycData(address user, uint256 countryCode, uint256 dateOfBirth, bytes32 salt)
+        external
+        view
+        returns (bool);
 
     // ENS name approval functions
     function approveEnsName(address user, string calldata ensName) external;

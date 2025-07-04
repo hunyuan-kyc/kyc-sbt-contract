@@ -6,69 +6,65 @@ import "./KycSBTTest.sol";
 contract KycSBTEnsTest is KycSBTTest {
     function testApproveShortName() public {
         string memory shortName = "abc.hsk";
-        
+
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, true, address(kycSBT));
         emit EnsNameApproved(user, shortName);
         kycSBT.approveEnsName(user, shortName);
         vm.stopPrank();
-        
+
         assertTrue(kycSBT.isEnsNameApproved(user, shortName), "Short name not approved");
     }
 
     function testRequestShortNameWithoutApproval() public {
         string memory shortName = "abc.hsk";
         uint256 totalFee = kycSBT.getTotalFee();
-        
+
         // First approve KYC
         vm.prank(owner);
         kycSBT.approveKyc(user, 1);
-        
+
         vm.startPrank(user);
         vm.deal(user, totalFee);
-        
+
         vm.expectRevert("KycSBT: Short name not approved for sender");
-        kycSBT.requestKyc{value: totalFee}(shortName);
-        
+        kycSBT.requestKyc{value: totalFee}(shortName, 0);
+
         vm.stopPrank();
     }
 
     function testRequestApprovedShortName() public {
         string memory shortName = "abc.hsk";
         uint256 totalFee = kycSBT.getTotalFee();
-        
+
         // First approve KYC
         vm.prank(owner);
         kycSBT.approveKyc(user, 1);
-        
+
         // Then approve short name
         vm.prank(owner);
         kycSBT.approveEnsName(user, shortName);
-        
+
         // Request KYC with approved short name
         vm.startPrank(user);
         vm.deal(user, totalFee);
-        
-        kycSBT.requestKyc{value: totalFee}(shortName);
-        
+
+        kycSBT.requestKyc{value: totalFee}(shortName, 0);
+
         // Verify KYC status
-        (
-            string memory storedName,
-            IKycSBT.KycLevel level,
-            IKycSBT.KycStatus status,
-            uint256 createTime
-        ) = kycSBT.getKycInfo(user);
-        
+        (string memory storedName, IKycSBT.KycLevel level, IKycSBT.KycStatus status, uint256 createTime) =
+            kycSBT.getKycInfo(user);
+
         assertEq(storedName, shortName, "ENS name not stored");
         assertEq(uint8(level), uint8(IKycSBT.KycLevel.BASIC), "Incorrect KYC level");
         assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Incorrect KYC status");
-        
+
         vm.stopPrank();
     }
 
     function testApproveShortNameNotOwner() public {
         string memory shortName = "abc.hsk";
-        
+
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
         kycSBT.approveEnsName(user, shortName);
@@ -79,22 +75,22 @@ contract KycSBTEnsTest is KycSBTTest {
         string memory shortName = "abc.hsk";
         address anotherUser = address(4);
         uint256 totalFee = kycSBT.getTotalFee();
-        
+
         // First approve KYC for another user
         vm.prank(owner);
         kycSBT.approveKyc(anotherUser, 1);
-        
+
         // Approve name for another user
         vm.prank(owner);
         kycSBT.approveEnsName(anotherUser, shortName);
-        
+
         // Try to use the name with a different user
         vm.startPrank(user);
         vm.deal(user, totalFee);
-        
+
         vm.expectRevert("KycSBT: Not approved");
-        kycSBT.requestKyc{value: totalFee}(shortName);
-        
+        kycSBT.requestKyc{value: totalFee}(shortName, 0);
+
         vm.stopPrank();
     }
 
@@ -115,21 +111,21 @@ contract KycSBTEnsTest is KycSBTTest {
     function testApproveAlreadyRegisteredName() public {
         string memory shortName = "abc.hsk";
         uint256 totalFee = _getTotalFee();
-        
+
         // First approve KYC for user1
         vm.prank(owner);
         kycSBT.approveKyc(user, 1);
-        
+
         // First approve and register for user1
         vm.startPrank(owner);
         kycSBT.approveEnsName(user, shortName);
         vm.stopPrank();
-        
+
         vm.startPrank(user);
         vm.deal(user, totalFee);
-        kycSBT.requestKyc{value: totalFee}(shortName);
+        kycSBT.requestKyc{value: totalFee}(shortName, 0);
         vm.stopPrank();
-        
+
         // Try to approve same name for another user
         address user2 = address(5);
         vm.startPrank(owner);
@@ -139,7 +135,7 @@ contract KycSBTEnsTest is KycSBTTest {
     }
 
     function testRequestKycNameTooShort() public {
-        string memory shortName = "a.hsk";  // Too short
+        string memory shortName = "a.hsk"; // Too short
         uint256 totalFee = _getTotalFee();
 
         // First approve KYC
@@ -150,20 +146,20 @@ contract KycSBTEnsTest is KycSBTTest {
         vm.deal(user, totalFee);
 
         vm.expectRevert("KycSBT: Short name not approved for sender");
-        kycSBT.requestKyc{value: totalFee}(shortName);
+        kycSBT.requestKyc{value: totalFee}(shortName, 0);
 
         vm.stopPrank();
     }
 
     function testRequestKycInvalidSuffix() public {
-        string memory invalidName = "alice.eth";  // Wrong suffix
+        string memory invalidName = "alice.eth"; // Wrong suffix
         uint256 totalFee = _getTotalFee();
 
         vm.startPrank(user);
         vm.deal(user, totalFee);
 
         vm.expectRevert("KycSBT: Invalid suffix");
-        kycSBT.requestKyc{value: totalFee}(invalidName);
+        kycSBT.requestKyc{value: totalFee}(invalidName, 0);
 
         vm.stopPrank();
     }
@@ -178,8 +174,8 @@ contract KycSBTEnsTest is KycSBTTest {
 
         // First request
         vm.startPrank(user);
-        vm.deal(user, totalFee * 2);  // Double the fee for two attempts
-        kycSBT.requestKyc{value: totalFee}(ensName);
+        vm.deal(user, totalFee * 2); // Double the fee for two attempts
+        kycSBT.requestKyc{value: totalFee}(ensName, 0);
 
         // Approve KYC again for second request
         vm.stopPrank();
@@ -189,14 +185,14 @@ contract KycSBTEnsTest is KycSBTTest {
         // Second request with same name
         vm.startPrank(user);
         vm.expectRevert("KycSBT: Name already registered");
-        kycSBT.requestKyc{value: totalFee}(ensName);
+        kycSBT.requestKyc{value: totalFee}(ensName, 0);
 
         vm.stopPrank();
     }
 
     function testSetInvalidSuffix() public {
         vm.startPrank(owner);
-        
+
         // Test empty suffix
         vm.expectRevert("KycSBT.setSuffix: Invalid suffix");
         kycSBT.setSuffix("");
@@ -219,31 +215,21 @@ contract KycSBTEnsTest is KycSBTTest {
 
         // First request
         vm.startPrank(user);
-        vm.deal(user, totalFee * 2);  // Double the fee for two requests
-        kycSBT.requestKyc{value: totalFee}(firstEnsName);
+        vm.deal(user, totalFee * 2); // Double the fee for two requests
+        kycSBT.requestKyc{value: totalFee}(firstEnsName, 0);
 
         // Verify first registration
-        (
-            string memory storedName,
-            IKycSBT.KycLevel level,
-            IKycSBT.KycStatus status,
-            
-        ) = kycSBT.getKycInfo(user);
+        (string memory storedName, IKycSBT.KycLevel level, IKycSBT.KycStatus status,) = kycSBT.getKycInfo(user);
 
         assertEq(storedName, firstEnsName, "First ENS name not stored correctly");
         assertEq(uint8(level), 1, "Incorrect KYC level after first request");
         assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Incorrect status after first request");
 
         // Second request with different name
-        kycSBT.requestKyc{value: totalFee}(secondEnsName);
+        kycSBT.requestKyc{value: totalFee}(secondEnsName, 0);
 
         // Verify second registration
-        (
-            storedName,
-            level,
-            status,
-            
-        ) = kycSBT.getKycInfo(user);
+        (storedName, level, status,) = kycSBT.getKycInfo(user);
 
         assertEq(storedName, secondEnsName, "Second ENS name not stored correctly");
         assertEq(uint8(level), 1, "KYC level should remain unchanged");
@@ -268,7 +254,7 @@ contract KycSBTEnsTest is KycSBTTest {
         // First request
         vm.startPrank(user);
         vm.deal(user, totalFee * 2);
-        kycSBT.requestKyc{value: totalFee}(firstEnsName);
+        kycSBT.requestKyc{value: totalFee}(firstEnsName, 0);
         vm.stopPrank();
 
         // Approve higher level
@@ -277,15 +263,10 @@ contract KycSBTEnsTest is KycSBTTest {
 
         // Second request with new level
         vm.startPrank(user);
-        kycSBT.requestKyc{value: totalFee}(secondEnsName);
+        kycSBT.requestKyc{value: totalFee}(secondEnsName, 0);
 
         // Verify updated level and new name
-        (
-            string memory storedName,
-            IKycSBT.KycLevel level,
-            IKycSBT.KycStatus status,
-            
-        ) = kycSBT.getKycInfo(user);
+        (string memory storedName, IKycSBT.KycLevel level, IKycSBT.KycStatus status,) = kycSBT.getKycInfo(user);
 
         assertEq(storedName, secondEnsName, "New ENS name not stored correctly");
         assertEq(uint8(level), 2, "KYC level should be updated to 2");
@@ -305,31 +286,21 @@ contract KycSBTEnsTest is KycSBTTest {
 
         // First request
         vm.startPrank(user);
-        vm.deal(user, totalFee * 3);  // Triple the fee for three requests
-        kycSBT.requestKyc{value: totalFee}(firstEnsName);
+        vm.deal(user, totalFee * 3); // Triple the fee for three requests
+        kycSBT.requestKyc{value: totalFee}(firstEnsName, 0);
 
         // Verify first registration
-        (
-            string memory storedName,
-            IKycSBT.KycLevel level,
-            IKycSBT.KycStatus status,
-            
-        ) = kycSBT.getKycInfo(user);
+        (string memory storedName, IKycSBT.KycLevel level, IKycSBT.KycStatus status,) = kycSBT.getKycInfo(user);
 
         assertEq(storedName, firstEnsName, "First ENS name not stored correctly");
         assertEq(uint8(level), 1, "Incorrect KYC level after first request");
         assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Incorrect status after first request");
 
         // Second request with different name (without additional approval)
-        kycSBT.requestKyc{value: totalFee}(secondEnsName);
+        kycSBT.requestKyc{value: totalFee}(secondEnsName, 0);
 
         // Verify second registration
-        (
-            storedName,
-            level,
-            status,
-            
-        ) = kycSBT.getKycInfo(user);
+        (storedName, level, status,) = kycSBT.getKycInfo(user);
 
         assertEq(storedName, secondEnsName, "Second ENS name not stored correctly");
         assertEq(uint8(level), 1, "KYC level should remain unchanged");
@@ -341,9 +312,9 @@ contract KycSBTEnsTest is KycSBTTest {
 
         // Try third request to verify it still works
         string memory thirdEnsName = "alice3.hsk";
-        kycSBT.requestKyc{value: totalFee}(thirdEnsName);
+        kycSBT.requestKyc{value: totalFee}(thirdEnsName, 0);
 
-        (storedName, level, status, ) = kycSBT.getKycInfo(user);
+        (storedName, level, status,) = kycSBT.getKycInfo(user);
         assertEq(storedName, thirdEnsName, "Third ENS name not stored correctly");
         assertEq(uint8(level), 1, "KYC level should still remain unchanged");
         assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Status should still remain approved");
@@ -353,4 +324,54 @@ contract KycSBTEnsTest is KycSBTTest {
 
         vm.stopPrank();
     }
-} 
+
+    function testRequestKycThenApproveShortNameAndRequestAgain() public {
+        string memory normalName = "alice123.hsk";
+        string memory shortName = "abc.hsk";
+        uint256 totalFee = _getTotalFee();
+
+        // First approve KYC
+        vm.prank(owner);
+        kycSBT.approveKyc(user, 1);
+
+        // First request with normal name
+        vm.startPrank(user);
+        vm.deal(user, totalFee * 2); // Double the fee for two requests
+        kycSBT.requestKyc{value: totalFee}(normalName, 0);
+
+        // Verify first registration
+        (string memory storedName, IKycSBT.KycLevel level, IKycSBT.KycStatus status,) = kycSBT.getKycInfo(user);
+
+        assertEq(storedName, normalName, "Normal name not stored correctly");
+        assertEq(uint8(level), 1, "Incorrect KYC level after first request");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Incorrect status after first request");
+        vm.stopPrank();
+
+        // Approve short name
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, true, address(kycSBT));
+        emit EnsNameApproved(user, shortName);
+        kycSBT.approveEnsName(user, shortName);
+        vm.stopPrank();
+
+        // Verify short name is approved
+        assertTrue(kycSBT.isEnsNameApproved(user, shortName), "Short name not approved");
+
+        // Request KYC with approved short name
+        vm.startPrank(user);
+        kycSBT.requestKyc{value: totalFee}(shortName, 0);
+
+        // Verify updated registration
+        (storedName, level, status,) = kycSBT.getKycInfo(user);
+
+        assertEq(storedName, shortName, "Short name not stored correctly");
+        assertEq(uint8(level), 1, "KYC level should remain unchanged");
+        assertEq(uint8(status), uint8(IKycSBT.KycStatus.APPROVED), "Status should remain approved");
+
+        // Verify name mappings
+        assertEq(kycSBT.ensNameToAddress(normalName), address(0), "Old name should be unregistered");
+        assertEq(kycSBT.ensNameToAddress(shortName), user, "Short name should be registered");
+
+        vm.stopPrank();
+    }
+}
