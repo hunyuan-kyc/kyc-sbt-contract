@@ -5,10 +5,11 @@ A decentralized KYC (Know Your Customer) system based on ENS (Ethereum Name Serv
 ## Overview
 
 This project implements a KYC system where:
-- Users can request KYC verification using their ENS names (.hsk)
-- Admins can approve/revoke KYC status
-- KYC status is bound to ENS names and cannot be transferred (Soulbound)
-- Multiple KYC levels supported (BASIC, ADVANCED, PREMIUM)
+- Users can request KYC verification using their ENS names (.hsk) and provide a hash of their personal data for privacy.
+- Whitelisted users can request KYC without fees.
+- Admins can approve/revoke KYC status.
+- KYC status is bound to ENS names and cannot be transferred (Soulbound).
+- Multiple KYC levels supported (BASIC, ADVANCED, PREMIUM).
 
 ![Main Process](process.jpg "Main Process")
 ## Features
@@ -19,16 +20,17 @@ This project implements a KYC system where:
   - ENS resolver for KYC status
 
 - **KYC Management**
-  - Request KYC with ENS name
-  - Approve/Revoke KYC status
-  - Multiple KYC levels
-  - KYC status expiration
+  - Request KYC with ENS name and a hash of personal data.
+  - Verify KYC data hash (e.g., country and date of birth).
+  - Approve/Revoke KYC status.
+  - Multiple KYC levels.
+  - KYC status expiration.
 
 - **Admin Features**
-  - Multi-admin support
-  - Emergency pause/unpause
-  - Fee management
-  - Whitelist management
+  - Multi-admin support.
+  - Emergency pause/unpause.
+  - Fee management.
+  - Whitelist management (fee exemption).
 
 - **Security**
   - Soulbound (non-transferable)
@@ -53,10 +55,16 @@ src/
 ### User Functions
 ```solidity
 // Request KYC verification
-function requestKyc(string calldata ensName) external payable;
+function requestKyc(string calldata ensName, bytes32 _kycDataHash) external payable;
 
 // Check if an address is KYC verified
 function isHuman(address account) external view returns (bool, uint8);
+
+// Verify if the provided KYC data matches the stored commitment for a user.
+function verifyKycData(address user, uint256 countryCode, uint256 dateOfBirth, bytes32 salt)
+    external
+    view
+    returns (bool);
 ```
 
 ### Admin Functions
@@ -117,12 +125,13 @@ class KycService {
     /**
      * 用户请求 KYC
      * @param ensName ENS 名称 (例如: "alice1.hsk")
+     * @param kycDataHash KYC 数据的哈希值 (例如: keccak256(abi.encodePacked(countryCode, dateOfBirth, salt)))
      * @returns 交易回执
      */
-    async requestKyc(ensName: string): Promise<TransactionReceipt> {
+    async requestKyc(ensName: string, kycDataHash: string): Promise<TransactionReceipt> {
         try {
             const fee = await this.kycSBT.registrationFee();
-            const tx = await this.kycSBT.requestKyc(ensName, { value: fee });
+            const tx = await this.kycSBT.requestKyc(ensName, kycDataHash, { value: fee });
             return await tx.wait();
         } catch (error) {
             console.error('Request KYC failed:', error);
@@ -151,7 +160,9 @@ async function demo() {
         );
 
         // 1. 请求 KYC
-        const requestTx = await kycService.requestKyc("alice1.hsk");
+        // 假设 kycDataHash 是预先计算好的，例如 keccak256(abi.encodePacked(countryCode, dateOfBirth, salt))
+        const exampleKycDataHash = "0x1234567890123456789012345678901234567890123456789012345678901234"; // 替换为实际的哈希值
+        const requestTx = await kycService.requestKyc("alice1.hsk", exampleKycDataHash);
         console.log("KYC Request TX:", requestTx.hash);
 
         // 2. 查询状态
