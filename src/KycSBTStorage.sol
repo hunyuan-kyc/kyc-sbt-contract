@@ -14,9 +14,6 @@ abstract contract KycSBTStorage {
         bytes32 kycDataHash; // To store the hash of country code, birthday, and a salt
     }
 
-    // Whitelist for fee exemption
-    mapping(address => bool) public isWhitelisted;
-
     // Configuration
     uint256 public registrationFee = 2 ether; // Fee required for KYC registration (2 HSK)
     uint256 public minNameLength = 5; // Minimum length required for ENS names
@@ -38,6 +35,9 @@ abstract contract KycSBTStorage {
     mapping(address => string) internal approvedEnsNames; // Maps address to approved ENS name
     mapping(string => bool) internal isNameApproved; // Maps ENS name to approval status
 
+    // Whitelist for fee exemption
+    mapping(address => bool) public isWhitelisted;
+
     // Reserved storage space for future upgrades
-    uint256[100] private __gap;
+    uint256[99] private __gap;
 }
